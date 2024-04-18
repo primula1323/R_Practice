@@ -1,0 +1,590 @@
+---
+title: "Data Analysis and Lab."  
+subtitle: 'Lab 5. Text as Data & Bootstrap'
+author: "Suhwan Bong"
+date: "2023-10-10"
+output:
+  html_document: default
+  pdf_document:
+    latex_engine: xelatex
+mainfont: NanumGothic
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE) 
+```
+ 
+
+___
+
+</br>
+
+## Introduction
+
+The *[arXiv](https://en.wikipedia.org/wiki/ArXiv)* (pronounced “archive”) is a fast-growing electronic repository of preprints of scientific papers from many disciplines. The **aRxiv** package provides an application programming interface (API) to the files and metadata available on *[the arXiv](https://arxiv.org)*. We will use the 1,089 papers that matched the search term “`data science`” in the repository as of August, 2020 to try to better understand the discipline. The following code was used to generate this file.
+
+```{r, message=FALSE}
+library(aRxiv)
+DataSciencePapers_arxiv <- arxiv_search(
+  query = '"Data Science"',
+  limit = 20000,
+  batchsize = 100
+)
+
+library(mdsr)
+data(DataSciencePapers)
+DataSciencePapers
+```
+
+Note that there are two columns in this data set (`submitted` and `updated`) that are clearly storing dates, but they are stored as `character` vectors.
+```{r}
+library(dplyr)
+glimpse(DataSciencePapers)
+```
+
+To make sure that **R** understands those variables as dates, we will once again use the **lubridate** package. After this conversion, **R** can deal with these two columns as measurements of time.
+```{r}
+library(lubridate)
+DataSciencePapers <- DataSciencePapers %>%
+  mutate(
+    submitted = lubridate::ymd_hms(submitted), 
+    updated = lubridate::ymd_hms(updated)
+  )
+glimpse(DataSciencePapers)
+```
+
+We begin by examining the distribution of submission years. How has interest grown in `data science`?
+```{r}
+mosaic::tally(~ year(submitted), data = DataSciencePapers)
+# Or, you can simply use :
+table(year(DataSciencePapers$submitted))
+```
+Let’s take a closer look at one of the papers, in this case one that focuses on causal inference.
+
+```{r}
+DataSciencePapers %>% 
+  filter(id == "1809.02408v2") %>%
+  glimpse()
+```
+
+We see that this is a primer on causality in data science that was submitted in 2018 and updated in 2019 with a primary category of `stat.AP`.
+
+What fields are generating the most papers in our dataset? A quick glance at the `primary_category` variable reveals a cryptic list of fields and sub-fields starting alphabetically with astronomy.
+
+```{r}
+DataSciencePapers %>%
+  group_by(primary_category) %>%
+  count() %>%
+  head()
+```
+
+It may be more helpful to focus simply on the primary field (the part before the period). We can use a regular expression to extract only the primary field, which may contain a dash (`-`), but otherwise is all lowercase characters. Once we have this information extracted, we can `tally()` those primary fields.
+```{r}
+library(stringr)
+DataSciencePapers <- DataSciencePapers %>%
+  mutate(
+    field = str_extract(primary_category, "^[a-z,-]+"),
+  )
+# DataSciencePapers <- DataSciencePapers %>%
+#   mutate(
+#     field = str_extract(primary_category, "^[A-Z,-]+"),
+#   )
+mosaic::tally(x = ~field, margins = TRUE, data = DataSciencePapers) %>%
+  sort()
+```
+
+It appears that more than half (646/1089 = 59 %) of these papers come from computer science, while roughly one quarter come from mathematics and statistics.
+
+## 1. Corpora
+
+Text mining is often performed not just on one text document, but on a collection of many text documents, called a *corpus*. Can we use the arXiv.org papers to learn more about papers in data science?
+
+The **tidytext** package provides a consistent and elegant approach to analyzing text data. The `unnest_tokens()` function helps prepare data for text analysis. It uses a `tokenizer` to split the text lines. By default the function maps characters to lowercase.
+
+Here we use this function to count word frequencies for each of the papers (other options include N-grams, lines, or sentences).
+
+```{r}
+#install.packages("tidytext")
+library(tidytext)
+DataSciencePapers %>%
+  unnest_tokens(word, abstract) %>%
+  count(id, word, sort = TRUE)
+```
+
+We see that the word `the` is the most common word in many abstracts. This is not a particularly helpful insight. It’s a common practice to exclude *[stop words](https://en.wikipedia.org/wiki/Stop_word)* such as `a`, `the`, and `you`. The `get_stopwords()` function from the **tidytext** package uses the **stopwords** package to facilitate this task. Let’s try again.
+
+```{r}
+#install.packages("stopwords") #You need to install the package "stopwords"
+library(stopwords)
+arxiv_words <- DataSciencePapers %>%
+  unnest_tokens(word, abstract) %>%
+  anti_join(get_stopwords(), by = "word") 
+
+
+arxiv_words %>%
+  count(id, word, sort = TRUE)
+```
+
+We now see that the word `data` is, not surprisingly, the most common non-stop word in many of the abstracts.
+
+It is convenient to save a variable (`abstract_clean`) with the abstract after removing stopwords and mapping all characters to lowercase.
+
+```{r}
+arxiv_abstracts <- arxiv_words %>%
+  group_by(id) %>%
+  summarize(abstract_clean = paste(word, collapse = " "))
+
+arxiv_papers <- DataSciencePapers %>%
+  left_join(arxiv_abstracts, by = "id")
+```
+
+We can now see the before and after for the first part of the abstract of our previously selected paper.
+
+```{r}
+single_paper <- arxiv_papers %>%
+  filter(id == "1809.02408v2")
+single_paper %>%
+  pull(abstract) %>%
+  strwrap() %>%
+  head()
+
+single_paper %>%
+  pull(abstract_clean) %>%
+  strwrap() %>%
+  head(4)
+
+```
+
+## 2. Word clouds
+
+At this stage, we have taken what was a coherent English abstract and reduced it to a collection of individual, non-trivial English words. We have transformed something that was easy for humans to read into `data`. Unfortunately, it is not obvious how we can learn from these data.
+
+One rudimentary approach is to construct a *[word cloud](https://en.wikipedia.org/wiki/Tag_cloud#Text_cloud)*—a kind of multivariate histogram for words. The **wordcloud** package can generate these graphical depictions of word frequencies.
+
+```{r}
+#install.packages(c("wordcloud","RColorBrewer"))
+library(wordcloud);library(RColorBrewer)
+set.seed(1966)
+arxiv_papers %>%
+  pull(abstract_clean) %>%
+  wordcloud(
+    max.words = 40, 
+    scale = c(8, 1), 
+    colors = topo.colors(n = 30), 
+    random.color = TRUE
+  )
+```
+Although word clouds such as the one shown in the Figure have limited abilities to convey meaning, they can be useful for quickly visualizing the prevalence of words in large corpora.
+
+## 3. Sentiment analysis
+
+Can we start to automate a process to discern some meaning from the text? The use of `sentiment analysis` is a simplistic but straightforward way to begin. A `lexicon` is a word list with associated sentiments (e.g., positivity, negativity) that have been labeled. A number of such lexicons have been created with such tags. Here is a sample of sentiment scores for one lexicon.
+
+```{r}
+library(tidytext)
+library(textdata)
+afinn <- get_sentiments("afinn")
+afinn %>%
+  slice_sample(n = 15) %>%
+  arrange(desc(value))
+```
+
+For the AFINN (Nielsen 2011) lexicon, each word is associated with an integer value, ranging from -5 to 5.
+
+We can join this lexicon with our data to calculate a sentiment score.
+```{r}
+arxiv_words %>% 
+  inner_join(afinn, by = "word") %>%
+  select(word, id, value)
+```
+
+```{r}
+arxiv_sentiments <- arxiv_words %>% 
+  left_join(afinn, by = "word") %>%
+  group_by(id) %>%
+  summarize(
+    num_words = n(),
+    sentiment = sum(value, na.rm = TRUE), 
+    .groups = "drop"
+  ) %>%
+  mutate(sentiment_per_word = sentiment / num_words) %>%
+  arrange(desc(sentiment))
+```
+
+Here we used `left_join`() to ensure that if no words in the abstract matched words in the lexicon, we will still have something to sum (in this case a number of NA’s, which sum to 0). We can now add this new variable to our dataset of papers.
+
+```{r}
+arxiv_papers <- arxiv_papers %>%
+  left_join(arxiv_sentiments, by = "id")
+arxiv_papers %>%
+  skim(sentiment, sentiment_per_word)
+```
+
+The average sentiment score of these papers is 4, but they range from −26 to 39. Surely, abstracts with more words might accrue a higher sentiment score. We can control for abstract length by dividing by the number of words. The paper with the highest sentiment score per word had a score of 0.333. Let’s take a closer look at the most positive abstract.
+
+```{r}
+most_positive <- arxiv_papers %>%
+  filter(sentiment_per_word == max(sentiment_per_word)) %>%
+  pull(abstract)
+strwrap(most_positive)
+```
+We see a number of positive words (e.g., “exciting,” “significant,” “important”) included in this upbeat abstract.
+
+We can also explore if there are time trends or differences between different disciplines (see the following Figure).
+
+```{r}
+ggplot(
+  arxiv_papers, 
+  aes(
+    x = submitted, y = sentiment_per_word, 
+    color = field == "cs"
+  )
+) + 
+  geom_smooth(se = TRUE) + 
+  scale_color_brewer("Computer Science?", palette = "Set2") +
+  labs(x = "Date submitted", y = "Sentiment score per word")
+```
+
+## 5. Document term matrices
+
+Another important technique in text mining involves the calculation of a *[term frequency-inverse document frequency (tf-idf)](https://en.wikipedia.org/wiki/Tf–idf)*, or *[document term matrix](https://en.wikipedia.org/wiki/Document-term_matrix)*. The **t**erm **f**requency of a term $t$ in a document $d$ is denoted $tf(t,d)$ and is simply equal to the number of times that the term $t$ appears in document $d$ divided by the number of words in the document. On the other hand, the inverse document frequency measures the prevalence of a term across a set of documents $D$. In particular,
+
+<div style="text-align:center">
+$\displaystyle idf(t,D) = log\frac{|D|}{|\{d\in D:t\in d\}|}$ 
+</div>
+
+Finally, $tf_idf(t,D)=tf(t,d)\cdot idf(t,D)$. The $tf_idf$ is commonly used in search engines, when the relevance of a particular word is needed across a body of documents.
+
+Note that unless they are excluded (as we have done above) commonly-used words like `the` will appear in every document. Thus, their inverse document frequency score will be zero, and thus their $tf_idf$ will also be zero regardless of the term frequency. This is a desired result, since words like `the` are never important in full-text searches. Rather, documents with high $tf_idf$ scores for a particular term will contain that particular term many times relative to its appearance across many documents. Such documents are likely to be more relevant to the search term being used.
+
+The most commonly-used words in our corpora are listed below. Not surprisingly “data” and “science” are at the top of the list.
+```{r}
+arxiv_words %>%
+  count(word) %>%
+  arrange(desc(n)) %>%
+  head()
+```
+
+However, the term frequency metric is calculated on a per word, per document basis. It answers the question of which abstracts use a word most often.
+```{r}
+tidy_DTM <- arxiv_words %>%
+  count(id, word) %>%
+  bind_tf_idf(word, id, n)
+tidy_DTM %>%
+  arrange(desc(tf)) %>%
+  head()
+```
+
+We see that among all terms in all papers, “data” has the highest term frequency for paper `2007.03606v1` (0.169). Nearly 17% of the non-stopwords in this papers abstract were “data.” However, as we saw above, since “data” is the most common word in the entire corpus, it has the *lowest* inverse document frequency (0.128). The `tf_idf` score for “data” in paper `2007.03606v1` is thus $0.169\cdot0.128=0.022$. This is not a particularly large value, so a search for “data” would not bring this paper to the top of the list.
+
+```{r}
+tidy_DTM %>%
+  arrange(desc(idf), desc(n)) %>%
+  head()
+```
+
+On the other hand, “wildfire” has a high `idf` score since it is included *in only one abstract* (though it is used 10 times).
+```{r}
+arxiv_papers %>%
+  pull(abstract) %>%
+  str_subset("wildfire") %>%
+  strwrap() %>%
+  head()
+```
+
+In contrast, “implications” appears in 25 abstracts. - 각 논문마다 idf는 n = 1이므로 같지만 tf는 달라짐.
+```{r}
+tidy_DTM %>%
+  filter(word == "implications")
+```
+
+The `tf_idf` field can be used to help identify keywords for an article. For our previously selected paper, “causal,” “exposure,” or “question” would be good choices.
+```{r}
+tidy_DTM %>%
+  filter(id == "1809.02408v2") %>%
+  arrange(desc(tf_idf)) %>%
+  head()
+```
+
+A search for “covid” yields several papers that address the pandemic directly.
+```{r}
+tidy_DTM %>%
+  filter(word == "covid") %>%
+  arrange(desc(tf_idf)) %>%
+  head() %>%
+  left_join(select(arxiv_papers, id, abstract), by = "id")
+```
+
+The (document, term) pair with the highest overall `tf_idf` is “reflections” (a rarely-used word having a high `idf` score), in a paper that includes only six non-stopwords in its abstract. Note that “implications” and “society” also garner high `tf_idf` scores for that same paper.
+```{r}
+tidy_DTM %>%
+  arrange(desc(tf_idf)) %>%
+  head() %>%
+  left_join(select(arxiv_papers, id, abstract), by = "id")
+```
+
+The `cast_dtm()` function can be used to create a document term matrix.
+```{r}
+tm_DTM <- arxiv_words %>%
+  count(id, word) %>%
+  cast_dtm(id, word, n, weighting = tm::weightTfIdf)
+tm_DTM
+```
+
+By default, each entry in that matrix records the *term frequency* (i.e., the number of times that each word appeared in each document). However, in this case we will specify that the entries record the normalized $tf_idf$ as defined above. Note that the `DTM` matrix is very sparse—99% of the entries are 0. This makes sense, since most words do not appear in most documents (abstracts, for our example).
+
+We can now use tools from other packages (e.g., **tm**) to explore associations. We can now use the `findFreqTerms()` function with the `DTM` object to find the words with the highest $tf_idf$ scores. Note how these results differ from the word cloud in the previous Figure. By term frequency, the word `data` is by far the most common, but this gives it a low $idf$ score that brings down its $tf_idf$.
+
+```{r}
+library(tm)
+findFreqTerms(tm_DTM, lowfreq = 7)
+```
+Since `tm_DTM` contains all of the $tf_idf$ scores for each word, we can extract those values and calculate the score of each word across all of the abstracts.
+```{r}
+library(purrr)
+tm_DTM %>% 
+  as.matrix() %>% 
+  as_tibble() %>%
+  map_dbl(sum) %>%
+  sort(decreasing = TRUE) %>%
+  head()
+```
+
+Moreover, we can identify which terms tend to show up in the same documents as the word `causal` using the `findAssocs()` function. In this case, we explore the words that have a correlation of at least 0.35 with the terms `causal`.
+
+
+## 6. Ingesting Text
+
+In Chapter 6 (see Section 6.4.1.2) we illustrated how the **rvest** package can be used to convert tabular data presented on the Web in HTML format into a proper **R** data table. Here, we present another example of how this process can bring text data into **R**.
+
+### Example: Scraping the songs of the Beatles
+
+In Chapter 14, we explored the popularity of the names for the four members of the *Beatles*. During their heyday from 1962–1970, the Beatles were prolific—recording hundreds of songs. In this example, we explore some of who sang and what words were included in song titles. We begin by downloading the contents of the Wikipedia page that lists the Beatles’ songs.
+```{r}
+library(rvest)
+url <- "http://en.wikipedia.org/wiki/List_of_songs_recorded_by_the_Beatles"
+tables <- url %>% 
+  read_html() %>% 
+  html_nodes("table")
+Beatles_songs <- tables %>%
+  purrr::pluck(3) %>%
+  html_table(fill = TRUE) %>%
+  janitor::clean_names() %>%
+  select(song, lead_vocal_s_d)
+glimpse(Beatles_songs)
+```
+
+We need to clean these data a bit. Note that the `song` variable contains quotation marks. The `lead_vocal_s_d` variable would benefit from being renamed.
+```{r}
+Beatles_songs <- Beatles_songs %>%
+  mutate(song = str_remove_all(song, pattern = '\\"')) %>%
+  rename(vocals = lead_vocal_s_d)
+```
+
+Most of the Beatles’ songs were sung by some combination of John Lennon and Paul McCartney. While their productive but occasionally contentious working relationship is well-documented, we might be interested in determining how many songs each person is credited with singing.
+```{r}
+Beatles_songs %>%
+  group_by(vocals) %>%
+  count() %>%
+  arrange(desc(n))
+```
+
+Lennon and McCartney sang separately and together. Other band members (notably Ringo Starr and George Harrison) also sang, along with many rarer combinations.
+
+Regular expressions can help us parse these data. We already saw the number of songs sung by each person individually, and it isn’t hard to figure out the number of songs that each person contributed to in some form in terms of vocals.
+```{r}
+Beatles_songs %>%
+  pull(vocals) %>%
+  str_subset("McCartney") %>%
+  length()
+```
+
+```{r}
+Beatles_songs %>%
+  pull(vocals) %>%
+  str_subset("Lennon") %>%
+  length()
+```
+
+John was credited with singing on more songs than Paul.
+
+How many of these songs were the product of some type of Lennon-McCartney collaboration? Given the inconsistency in how the vocals are attributed, it requires some ingenuity to extract these data. We can search the `vocals` variable for either `McCartney` or `Lennon` (or both), and count these instances.
+
+```{r}
+Beatles_songs %>%
+  pull(vocals) %>%
+  str_subset("(McCartney|Lennon)") %>%
+  length()
+```
+
+At this point, we need another regular expression to figure out how many songs they both sang on. The following will find the pattern consisting of either `McCartney` or `Lennon`, followed by a possibly empty string of characters, followed by another instance of either `McCartney` or `Lennon`.
+
+```{r}
+pj_regexp <- "(McCartney|Lennon).*(McCartney|Lennon)"
+Beatles_songs %>%
+  pull(vocals) %>%
+  str_subset(pj_regexp) %>%
+  length()
+```
+
+Note also that we can use `str_detect()` in a `filter()` command to retrieve the list of songs upon which Lennon and McCartney both sang.
+
+```{r}
+Beatles_songs %>%
+  filter(str_detect(vocals, pj_regexp)) %>%
+  select(song, vocals) %>%
+  head()
+```
+
+The Beatles have had such a profound influence upon musicians of all stripes that it might be worth investigating the titles of their songs. What were they singing about?
+
+```{r}
+Beatles_songs %>%
+  unnest_tokens(word, song) %>%
+  anti_join(get_stopwords(), by = "word") %>%
+  count(word, sort = TRUE) %>%
+  arrange(desc(n)) %>%
+  head()
+```
+
+Fittingly, “Love” is the most common word in the title of Beatles songs.
+
+## Bootstrap
+
+In the previous examples, we had access to the population data and so we could find the sampling distribution by repeatedly sampling from the population. In practice, however, we have only one sample and not the entire population. The **bootstrap** is a statistical method that allows us to approximate the sampling distribution even without access to the population.
+
+The logical leap involved in the bootstrap is to think of our sample itself as if it were the population. Just as in the previous examples we drew many samples from the population, now we will draw many new samples from our original sample. This process is called resampling: drawing a new sample from an existing sample.
+
+When sampling from a population, we would of course make sure not to duplicate any of the cases, just as we would never deal the same playing card twice in one hand. When resampling, however, we do allow such duplication (in fact, this is what allows us to estimate the variability of the sample). Therefore, we sample with replacement.
+
+To illustrate `three_flights`, consider three_flights, a very small sample ($n = 3$) from the flights data. Notice that each of the cases in `three_flights` is unique. There are no duplicates.
+
+```{r}
+library(tidyverse)
+library(mdsr)
+library(nycflights13)
+SF <- flights %>%
+  filter(dest == "SFO", !is.na(arr_delay))
+three_flights <- SF %>%
+  slice_sample(n = 3, replace = FALSE) %>%
+  select(year, month, day, dep_time)
+three_flights
+```
+
+Resampling from `three_flights` is done by setting the `replace` argument to `TRUE`, which allows the sample to include duplicates.
+
+```{r}
+three_flights %>% slice_sample(n = 3, replace = TRUE)
+```
+
+In this particular resample, each of the individual cases appear once (but in a different order). That’s a matter of luck. Let’s try again.
+
+```{r}
+three_flights %>% slice_sample(n = 3, replace = TRUE)
+```
+
+This resample has two instances of one case and a single instance of another.
+
+Bootstrapping does not create new cases: It isn’t a way to collect data. In reality, constructing a sample involves genuine data acquisition, e.g., field work or lab work or using information technology systems to consolidate data. In this textbook example, we get to save all that effort and simply select at random from the population, `SF`. The one and only time we use the population is to draw the original sample, which, as always with a sample, we do without replacement.
+
+Let’s use bootstrapping to estimate the reliability of the mean arrival time calculated on a sample of size 200. (Ordinarily this is all we get to observe about the population.)
+
+```{r}
+n <- 200
+orig_sample <- SF %>% 
+  slice_sample(n = n, replace = FALSE)
+```
+
+Now, with this sample in hand, we can draw a resample (of that sample size) and calculate the mean arrival delay.
+
+```{r}
+orig_sample %>%
+  slice_sample(n = n, replace = TRUE) %>%
+  summarize(mean_arr_delay = mean(arr_delay))
+```
+
+By repeating this process many times, we’ll be able to see how much variation there is from sample to sample:
+
+```{r}
+num_trials <- 200
+sf_200_bs <- 1:num_trials %>%
+  map_dfr(
+    ~orig_sample %>%
+      slice_sample(n = n, replace = TRUE) %>%
+      summarize(mean_arr_delay = mean(arr_delay))
+  ) %>%
+  mutate(n = n)
+
+sf_200_bs %>%
+  skim(mean_arr_delay)
+```
+
+We could estimate the standard deviation of the arrival delays to be about 3.1 minutes.
+
+Ordinarily, we wouldn’t be able to check this result. But because we have access to the population data in this example, we can. Let’s compare our bootstrap estimate to a set of (hypothetical) samples of size  ($n = 200$) from the original `SF` flights (the population).
+
+```{r}
+sf_200_pop <- 1:num_trials %>%
+  map_dfr(
+    ~SF %>%
+      slice_sample(n = n, replace = TRUE) %>%
+      summarize(mean_arr_delay = mean(arr_delay))
+  ) %>%
+  mutate(n = n)
+
+sf_200_pop %>%
+  skim(mean_arr_delay)
+```
+Notice that the population was not used in the bootstrap (`sf_200_bs`), just the original sample. What’s remarkable here is that the standard error calculated using the bootstrap (3.1 minutes) is a reasonable approximation to the standard error of the sampling distribution calculated by taking repeated samples from the population (3.3 minutes).
+
+
+\newpage
+
+## Exercises
+
+### Problem 1
+We saw that a 95% confidence interval for a mean was constructed by taking the estimate and adding and subtracting two standard deviations. How many standard deviations should be used if a 99% confidence interval is desired?
+
+### Problem 2
+Calculate and interpret a 95% confidence interval for the mean age of mothers from the Gestation data set from the mosaicData package.
+
+### Problem 3
+Use the bootstrap to generate and interpret a 95% confidence interval for the median age of mothers for the Gestation data set from the mosaicData package.
+
+### Problem 4
+Use the bootstrap to generate a 95% confidence interval for the regression parameters in a model for weight as a function of age for the Gestation data frame from the mosaicData package.
+
+### Problem 5
+Use the Macbeth_raw data from the mdsr package to answer the following questions:
+
+1. Speaking lines in Shakespeare’s plays are identified by a line that starts with two spaces, then a string of capital letters and spaces (the character’s name) followed by a period. Use grep to find all of the speaking lines in Macbeth. How many are there?
+
+2. Find all the hyphenated words in Macbeth.
+
+### Problem 6
+Wikipedia defines a hashtag as “a type of metadata tag used on social networks such as Twitter and other microblogging services, allowing users to apply dynamic, user-generated tagging which makes it possible for others to easily find messages with a specific theme or content.” A hashtag must begin with a hash character followed by other characters, and is terminated by a space or end of message. It is always safe to precede the # with a space, and to include letters without diacritics (e.g., accents), digits, and underscores." Provide a regular expression that matches whether a string contains a valid hashtag.
+
+```{r}
+strings <- c(
+  "This string has no hashtags",
+  "#hashtag city!",
+  "This string has a #hashtag",
+  "This string has #two #hashtags"
+)
+```
+
+### Problem 7.
+A text analytics project is using scanned data to create a corpus. Many of the lines have been hyphenated in the original text.
+
+```{r}
+text_lines <- tibble(
+  lines = c("This is the first line.",
+           "This line is hyphen- ",
+           "ated. It's very diff-",
+           "icult to use at present.")
+)
+```
+
+Write a function that can be used to remove the hyphens and concatenate the parts of the words that are split on the line where they first appeared.
+

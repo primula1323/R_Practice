@@ -1,0 +1,355 @@
+---
+title: "Data Analysis and Lab."
+author: "Suhwan Bong"
+date: "2023-12-05"
+output:
+  html_document: default
+  pdf_document: default
+subtitle: 'Lab 12: Causal Inference'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+In this lab, we will examine the effect of job training program on income as a real data example. Two packages will be used, `MatchIt` and `WeightIt`. Both packages are under the maintenance of the same author and contain a wide array of popular matching and weighting methods.
+
+# Lalonde Dataset
+
+```{r}
+library(MatchIt)
+library(sandwich)
+library(optmatch)
+## Using Lalonde data
+head(lalonde)
+```
+
+
+## No matching; constructing a pre-match matchit object
+```{r}
+no.adj <- matchit(treat ~ age + educ + race + married + nodegree + re74 + re75, data = lalonde, method = NULL, distance = "glm")
+options(width = 100)
+summary(no.adj)
+```
+
+## Propensity score stratification: # of strata = 7 by default
+```{r}
+ps.str <- matchit(treat ~ age + educ + race + married + nodegree + re74 + re75, data = lalonde, method = "subclass", distance = "glm", link = "probit", subclass = 7)
+summary(ps.str, un = F)
+```
+
+## 1:1 Propensity Score Matching (PSM)
+```{r}
+ps.mat <- matchit(treat ~ age + educ + race + married + nodegree + re74 + re75, data = lalonde, method = "nearest", distance = "glm", link = "probit", replace = T)
+options(width = 200)
+summary(ps.mat, un = F)
+```
+
+## IPW - ATT for comparison
+```{r}
+library(WeightIt)
+W <- weightit(treat ~ age + educ + race + married + nodegree + re74 + re75, data = lalonde, method = "glm", estimand = "ATT")
+library(cobalt)
+bal.tab(W, un = TRUE)
+```
+
+## Estimate Treatment Effects
+```{r}
+library(marginaleffects)
+
+## Creating stratified/matched data
+str.data <- match.data(ps.str)
+mat.data <- match.data(ps.mat)
+
+## PS Stratification
+fit.str <- lm(re78 ~ treat, data = str.data, weights = weights)
+avg_comparisons(fit.str, variables = "treat", vcov = ~subclass, newdata = subset(str.data, treat == 1), wts = "weights")
+
+```
+
+Estimate: $1,301 with 95% CI = (-423, 3025)
+
+```{r}
+## PS 1:1 Matching
+fit.mat <- lm(re78 ~ treat, data = mat.data, weights = weights)
+avg_comparisons(fit.mat, variables = "treat", vcov = "HC3", newdata = subset(mat.data, treat == 1), wts = "weights")
+```
+
+Estimate: $1,290 with 95% CI = (-603, 3184)
+
+```{r}
+## IPW
+lalonde2 <- lalonde
+lalonde2$ipw.weight <- W$weights
+fit.ipw <- lm(re78 ~ treat, data = lalonde2, weights = ipw.weight)
+avg_comparisons(fit.ipw, variables = "treat", vcov = "HC3", wts = "ipw.weight")
+```
+
+## Full matching
+```{r}
+## full matching (without replacement)
+ps.fullmat <- matchit(treat ~ age + educ + race + married + nodegree + re74 + re75, data = lalonde, method = "full", distance = "glm", link = "probit")
+fullmat.data <- match.data(ps.fullmat)
+fit.fullmat <- lm(re78 ~ treat, data = fullmat.data, weight = weights)
+avg_comparisons(fit.fullmat, variables = "treat", vcov = ~subclass, newdata = subset(fullmat.data, treat == 1), wts = "weights")
+```
+
+
+Estimate: $1,855 with 95% CI = (364, 3346)
+Remark: results from randomized experiments -> $2,114 with 95% CI (458,3955)
+
+
+
+# Beyond the Class
+The procedure for matching consists of design and analysis stages. During the design stage, the goal is to create matched pairs/sets so that matched subjects are sufficiently close enough in terms of their covariates. Thie stage consists of several tasks: (i) estimating the propensity score, (ii) choosing appropriate matching methods, and (iii) assessing covariate balance. We do not need the outcome $Y$ in this stage. We use only the treatment indicator $Z$ and covariates $X$. Doing so, transparency can be ensured. The analysis stage is quite simple. Based on the matched pairs/sets, we conduct hypothesis testing or estimate the treatment effects. Inferences can be made based on randomization inference as we covered, or we can use a weighted regression model with matching weights. Some practical issues are listed below:
+
+* Variable selection for the propensity score model. See VanderWeele (2019).
+* Nearest neighbor matching or optimal matching?
+* Are there any covariates more important than the others? Do we need to match exactly on these?
+* Use randomization inference or not?
+
+The **MatchIt** package will be used. More details can be found at https://kosukeimai.github.io/MatchIt/. For general introductions to matching, see Stuart (2010). 
+
+# NSW Experiment Data + Survey Data (CPS)
+
+## Recall the NSW experiment data
+
+We examine the effect of the job training program on later earnings using the NSW experiment data. During this lecture, we used 185 treated and 185 control male subjects to evaluate the effect.
+
+```{r warning=FALSE}
+library(DOS2)
+## checking covariate balance between treated and control subjects. 
+summary.nsw.exp = aggregate(NSW[,3:10], list(NSW$z), FUN = mean)
+colnames(summary.nsw.exp)[1] = "Treatment"
+summary.nsw.exp
+
+## Wilcoxon's signed rank statistic
+wilcox.test(NSW$re78[NSW$z==1] - NSW$re78[NSW$z==0], conf.int = T)
+# wilcox.test(NSW$re78[NSW$z==1], NSW$re78[NSW$z==0], conf.int = T, paired = T)
+```
+
+## Compared to the survey data
+
+Now, we're going to examine the effect using the same 185 treated male subjects and other 429 controls. The 429 subjects are obtained from nonrandomized survey, CPS. Let's see how different they are compared to the treated subjects. Can we draw a similar conclusion as we did using the randomized experiment?
+
+```{r warning=FALSE}
+lalonde$black = (lalonde$race == "black")
+lalonde$hisp = (lalonde$race == "hispan")
+summary.nsw.obs = aggregate(lalonde[, c(2,3,10,11,5,6,7,8)], list(lalonde$treat), FUN = mean)
+colnames(summary.nsw.obs)[c(1,3)] = c("Treatment", "edu")
+summary.nsw = rbind(summary.nsw.obs[1,], summary.nsw.exp)
+summary.nsw[,1] = c("obs_control", "exp_control", "treated")
+summary.nsw
+```
+
+Our goal is to find control subjects who are comparable to the treated subjects, and then, make inferences. The control reservoir is larger than the treated reservoir. We can start with optimal pair matching. To illustrate several matching techniques, we will use the **MatchIt** package.
+
+## Estimating the propensity score $e(x)$
+
+We use the propensity socre model proposed by Dehejia and Wahba (1999). It uses additional terms for age and education.
+
+```{r warning=FALSE}
+lalonde$age2 = (lalonde$age - mean(lalonde$age))^2
+lalonde$age3 = (lalonde$age - mean(lalonde$age))^3
+lalonde$educ2 = (lalonde$educ - mean(lalonde$educ))^2
+
+## Propensity score estimation 
+ps.fit = glm(treat ~ age + age2 + age3 + educ + educ2 + black + hisp + 
+                married + nodegree + re74 + re75, family=binomial, x=T, data=lalonde)
+summary(ps.fit)
+
+est.ps = predict(ps.fit, type = "response")
+hist(est.ps[lalonde$treat==0], col = rgb(1,0,0,0.2), xlab = "Propensity Score", main = "Treated (blue) vs. Control (red)")
+hist(est.ps[lalonde$treat==1], col = rgb(0,0,1,0.2), add = T)
+```
+
+## Optimal Pair Matching - Using the propenstiy score Only (or PSM)
+
+We use the estimated propensity score $e(x)$ and proceed the optimal matching procedure. To do so, we need to specify the distance matrix between treated and control subjects. We use the absolute difference, i.e, $|e({x}_t) - e({x}_c)|$. Other distances can be used; e.g., squared difference $(e({x}_t) - e({x}_c))^2$.
+
+```{r warning=FALSE}
+library(optmatch)
+ps.dist = match_on(est.ps, z=lalonde$treat)
+
+psm.out = matchit(treat ~ age + educ + black + hisp + married + nodegree + re74 + re75,
+                   data = lalonde, method= "optimal", distance = ps.dist)
+# If you don't have a specific ps model in mind, then you could set the distance automatically. 
+# psm.out = matchit(treat ~ age + educ + black + hisp + married + nodegree + re74 + re75,
+#                    data = lalonde, method= "optimal", distance = "glm")
+summary(psm.out)
+plot(summary(psm.out), var.order = "unmatched")
+```
+
+
+The covariate balance table is shown before and after matching. We need to closely look at the column of **Std. Mean Diff**, standardized mean difference (SMD). A rule of thumb is making the SMD smaller than 0.1. We say 0.2 is acceptable, but 0.1 is preferable. As shown in the table, the balance is quite bad. Some covariates achieve good balance, but $\texttt{black}$ is not balanced at all.
+
+## Using the rank-based Mahalanobis distance Within ps calipers
+
+Let's try the rank-based Mahalanobis distance within propensity score (ps) caliper. There are several options to compute this distance, but we recommend to use the **match_on** function in the **optmatch** package or the **smahal** function in the **DOS2** package.
+
+A shortcut without computing the distance is to use the distance option *mahalanobis* or *robust_mahalanobis* in the **matchit** function in the **MatchIt** package. However, in this setting, ps caliper cannot be specified.
+
+```{r warning=FALSE}
+mc.out = matchit(treat ~ age + educ + black + hisp + married + nodegree + re74 + re75,
+                   data = lalonde, method= "optimal", distance = "robust_mahalanobis")
+summary(mc.out, un = F)
+```
+
+Instead, we can compute the distance first, and add caliper to it. We can specify the caliper width. The default setting is 0.2. In this example, width=0.2 is too tight to solve the matching problem. 
+
+```{r warning=FALSE, error=TRUE}
+smahal.dist = match_on(treat ~ age + educ + black + hisp + married + nodegree + re74 + re75,
+                       data = lalonde, method="rank_mahalanobis")
+
+### caliper width = 0.2 -> doesn't work
+smahal.dist2 = smahal.dist + caliper(ps.dist, width = 0.2)
+mc.out2 = matchit(treat ~ age + educ + black + hisp + married + nodegree + re74 + re75,
+                              data = lalonde, method= "optimal", distance = as.matrix(smahal.dist2))
+
+
+### Caliper width = 1
+smahal.dist3 = smahal.dist + caliper(ps.dist, width = 1)
+mc.out3 = matchit(treat ~ age + educ + black + hisp + married + nodegree + re74 + re75,
+                              data = lalonde, method= "optimal", distance = as.matrix(smahal.dist3))
+summary(mc.out3, un = F)
+
+```
+Still no significant improvement in covariate balance. 
+
+## Using the Mahalanobis distance within ps calipers with near-exact matching for black
+
+We can directly add a penalty for black. If two subjects have different values of black, then their distance gets larger. The penalty values is $10 \times$ maximum distance. 
+
+```{r warning=FALSE}
+smahal.dist.black = addalmostexact(as.matrix(smahal.dist), lalonde$treat, lalonde$black, mult = 10)
+
+mc.black.out = matchit(treat ~ age + educ + black + hisp + married + nodegree + re74 + re75,
+                       data = lalonde, method= "optimal",
+                       distance = as.matrix(smahal.dist.black))
+summary(mc.black.out, un = F)
+```
+No signficant change in matching quality. 
+
+# When there are covariates that are hard to match on?
+
+In such cases, we need to look at the variables that are difficult to match on. The most difficult variable is black. 
+```{r warning=FALSE, error=TRUE}
+table(lalonde$treat, lalonde$black)
+```
+There is no problem in matching for non-black people. There are 29 treated and 342 control subjects. The control reservoir is much larger than the treated one. However, among black people, there are 156 treated subjects (> 87 control subjects). In this case, there are two options we can take: (1) optimal full matching, and (2) two smaller matching problems for black and non-black separately.  
+
+## Optimal full matching
+
+The optimal full matching method consists of 1:$k$ matched sets \& $k$:1 matched sets (various $k$). The value of $k$ can be very large. To avoid this situation, we usually set an option, "max.controls." As shown in the matching output, the balance is now acceptable. 
+
+```{r warning=FALSE, error=TRUE}
+m.full.out = matchit(treat ~ age + educ + married + black + hisp + nodegree + re74 + re75,
+                     data= lalonde, method = "full", 
+                     distance = "glm", max.controls = 30)
+summary(m.full.out, un = F)
+```
+
+We can try a different link (probit) for the propensity score model. Balane is better, as determined by the lower SMD. 
+```{r warning=FALSE, error=TRUE}
+m.full.probit.out = matchit(treat ~ age + educ + married + black + hisp + nodegree + re74 + re75,
+                     data= lalonde, method = "full", 
+                     distance = "glm", link = "probit")
+summary(m.full.probit.out, un = F)
+plot(summary(m.full.probit.out), var.order = "unmatched")
+```
+
+## Separate optimal pair matching for black and non-black
+
+In the full matching method, there is no thrown away subject. However, using all subjects is not always the best way for matching. There could be a loss in precision due to the weights. Subjects may be weighted in such a way that they contribute less to the sample than would unweighted subjects. **Effective sample size (ESS)** of the full matching weighted sample may be lower than even that of 1:1 pair matching. 
+
+An alternative method is to remove subjects that are not comparable. We can match exactly on black. 
+```{r warning=FALSE, error=TRUE}
+## matching separate
+m.exact.out = matchit(treat ~ age + educ + black + hisp + married + nodegree + re74 + re75,
+                      data = lalonde, method= "optimal", 
+                      distance = "robust_mahalanobis", exact = ~black)
+
+summary(m.exact.out, un = F)
+```
+
+# Analysis Stage
+
+## Using randomziation inference
+
+Optimal full matching produces matched sets with variable set sizes. Wilcoxon's signed rank test cannot be applicable. We instead use Huber's M-statistic. Randomization inference using this statistic is easily done with the **senfm** function in the **sensitivityfull** package. 
+
+We need to make a table for outcome first. Each row represents a matched set. The first column is always the treated outcomes. 
+```{r warning=FALSE, error=TRUE}
+## analysis 
+
+m.full = match.data(m.full.probit.out)
+subclass = as.numeric(m.full$subclass)
+## outcome matrix 
+y.fm = matrix(NA, nrow = length(unique(subclass)), ncol = max(table(subclass))) 
+treat1.vec = rep(NA, length(unique(subclass)))
+for(i in 1:length(unique(subclass))){
+  temp.indicator = (subclass == i)
+  if(sum(m.full$treat[temp.indicator]) == 1){
+    y.fm[i,1] = m.full$re78[temp.indicator==1 & m.full$treat==1]
+    y.fm[i,(2:sum(temp.indicator))] = m.full$re78[temp.indicator==1 & m.full$treat ==0]
+    treat1.vec[i]= TRUE
+  }else{
+    y.fm[i,1] = m.full$re78[temp.indicator==1 & m.full$treat==0]
+    y.fm[i,(2:sum(temp.indicator))] = m.full$re78[temp.indicator==1 & m.full$treat==1]
+    treat1.vec[i]= FALSE
+  }
+}
+```
+
+Comptuing the paired outcome table for matched pairs is easier. Randomization inference can be implemented by using the **senmw** function in the **sensitivitymw** package.
+```{r warning=FALSE, error=TRUE}
+m.exact = match.data(m.exact.out)
+y.pair = matrix(NA, nrow = length(unique(m.exact$subclass)), ncol = 2)
+for(i in 1:length(unique(m.exact$subclass))){
+  y.pair[i,1] = m.exact$re78[m.exact$subclass == i & m.exact$treat == 1]
+  y.pair[i,2] = m.exact$re78[m.exact$subclass == i & m.exact$treat == 0]
+}
+```
+
+
+```{r warning=FALSE, error=TRUE}
+library(sensitivityfull)
+senfm(y.fm, treated1 = treat1.vec)
+senfmCI(y.fm, treated1 = treat1.vec)
+
+library(sensitivitymw)
+senmw(y.pair)
+senmwCI(y.pair, one.sided = F)
+```
+
+## Using an outcome model
+
+We can run a simple regression of the outcome on the treatment with matching weights. Using cluster-robust standard errors is recommended. Also, using pair membership as the clustering variable is recommended. 
+```{r error=TRUE, warning=FALSE}
+library("lmtest") # coeftest
+library("sandwich") # vcovCL
+
+fit.full = lm(re78 ~ treat, data = m.full, weights = weights)
+coeftest(fit.full, vcov. = vcovCL, cluster = ~subclass)
+```
+
+A natural question to ask is whether we can include covariates in the outcome model. One may ask, why use matching at all if you are going to model the outcome with covariates anyway? Matching reduces the dependence of the effect estimate on correct specification of the outcome model, and this is the central ideaof Ho et al. (2007). 
+
+However, searching for the best outcome model by trying many models is discouraged. Doing so can invalidate results and yield a conclusion that fails to replicate. We recommend only including the same terms inluded in the propensity score model unless there is a strong *a priori* and justifiable reason to mdeol the outcome differently. 
+```{r error=TRUE, warning=FALSE}
+fit.full.with.cov = lm(re78 ~ treat + age + educ + black + hisp + 
+                         married + nodegree + re74 + re75, 
+                       data = m.full, weights = weights)
+coeftest(fit.full.with.cov, vcov. = vcovCL, cluster = ~subclass)
+```
+
+For matched pairs, we can use 
+```{r error=TRUE, warning=FALSE}
+fit.pair = lm(re78 ~ treat, data = m.exact, weights = weights)
+coeftest(fit.pair, vcov. = vcovCL, cluster = ~subclass)
+```
+
+Oh, wait! Why are these regression estimates so different from the estimates based on randomization inference?
+```{r error=TRUE, warning=FALSE}
+boxplot(y.pair[,1] - y.pair[,2], main = "Treated-Minus-Control Differences")
+```

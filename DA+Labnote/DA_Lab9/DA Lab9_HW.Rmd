@@ -1,0 +1,163 @@
+---
+title: "DA Lab9_HW"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ISLR2)
+library(MASS)
+library(e1071)
+library(glmnet)
+```
+
+
+# Exercises
+
+We will use `Smarket` data from `ISLR2` library. This data set consists of percentage returns for the S&P 500 stock index over 1, 250 days, from the beginning of 2001 until the end of 2005. For each date, we have recorded the percentage returns for each of the five previous trading days, Lag1 through Lag5. We have also recorded Volume (the number of shares traded on the previous day, in billions), Today (the percentage return on the date in question) and Direction (whether the market was Up or Down on this date). Our goal is to predict Direction (a qualitative response) using the other features.
+
+```{r}
+head(Smarket)
+df <- Smarket
+```
+
+(a) Fit the logistic regression model and explain the result.
+
+```{r}
+df %>% transmute(sgk = sign(sign(Today) + 1), cors = cor(sgk, as.numeric(Direction)))
+```
+
+본격적 분석을 하기 전에. `Today` 변수와 `Direction` 변수는 당연히 같이 넣고 돌리면 회귀분석을 망친다.
+
+
+```{r}
+modela <- glm(Direction ~ Year + Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, family = binomial, data = df)
+summary(modela)
+preda <- modela$fitted.values > 0.5
+table_a <- table(df$Direction, preda)
+table_a
+```
+
+사실, 약형 효율적 시장 가설(주식의 거래 정보와 같은 과거 시장 거래 자료가 담고 있는 모든 정보는 이미 주가에 반영되었다는 이론)이 제시하는 내용에 따르면 lag1~lag5(수 일 전 수익률), volume(거래량)이 Direction(오늘의 방향)을 예측하는 데 유의하지 않은 것은 전혀 놀랍지 않다! 그러면 `Year` 변수는 대체 왜 오즈를 예측하는 데 유의하다는 평가를 받았는가? 이는 하필이면 제시된 연도에서만큼은 Year 그 자체가 내생적으로 다른 의미를 가지고 있기 때문이다. 아래의 표를 보자.
+
+
+```{r}
+df %>%
+  group_by(Year) %>%
+  summarise(sum(Direction == 'Up'))
+```
+
+2001년은 닷컴 버블의 붕괴와 911 테러의 영향으로 인해 주식시장에 큰 충격이 있었던 해였다. 이와 같은 연도 자체의 특징이 영향을 끼쳤다고 보아야지, Year이 가면 갈수록 주식시장 전체에서 '상승인 일의 수'가 많아진다는 결론을 내리는 것은 불가능하다.
+
+
+
+---
+
+(b) Fit the LDA model and explain the result.
+
+```{r}
+modelb <- lda(Direction ~ Year + Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = df)
+modelb
+
+realb <- df$Direction
+predb <- predict(modelb)$class
+table_b <- table(realb, predb)
+table_b
+```
+
+
+
+---
+
+(c) Fit the QDA model and explain the result.
+
+```{r}
+modelc <- qda(Direction ~ Year + Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = df)
+modelc
+#predict(modelc)$class[1:10]
+#predict(modelc)$posterior[1:10]
+
+realc <- df$Direction
+predc <- predict(modelc)$class
+table_c <- table(realc, predc)
+table_c
+```
+
+
+qda와 lda를 비교하면, qda가 lda에 비해 prediction에서 Up을 전반적으로 많이 예측하는 경향이 있다. 이와 같은 특징은 (a)에서 설명한 것처럼 Year group에서의 분산이 다른 그룹의 분산과 같다는 가정이 같지 않을 가능성이 크기에(자료 생성 과정에서 외부 변수가 개입하여 현재 모델로는 설명되지 않는 오류가 분산으로 들어가 있다.) 발생한 것으로 보인다. 물론, Lag1~Lag5끼리는 분산이 거의 동등할 것이므로 이것만을 쓰는 경우 lda를 써도 될 것이다.
+
+
+
+---
+
+(d) Fit the naive Bayes model and explain the result.
+
+```{r}
+modeld = naiveBayes(Direction ~ Year + Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = df)
+modeld
+reald <- df$Direction
+predd <- predict(modeld, df)
+table_d <- table(reald, predd)
+table_d
+```
+
+
+지금까지 봐왔던 다른 모델들보다도 Up의 비중이 낮다고 예측하는 특징이 있다.
+
+
+
+---
+
+(e) Fit the penalized logistic regression model and explain the result.
+
+
+```{r}
+x_e <- as.matrix(df[,1:7])
+y_e <- ifelse(df$Direction == 'Up', 1, 0)
+modele <- glmnet(x_e, y_e, family = binomial, alpha = 1, data = Default, lambda =0.001)
+
+real_e <- df$Direction
+prob_e <- as.vector(predict(modele, s = 0.001, type = "response", newx = x_e))
+pred_e <- ifelse(prob_e >= 0.5, 1, 0)
+table_e <- table(real_e, pred_e)
+table_e
+```
+
+
+
+---
+
+(f) Make a contingency table for (a) to (e).
+
+
+각 문항별로 혼동행렬을 만들어 두었다. 대체 왜 (a)랑 (b)가 같은 혼동행렬을 결과로 도출했는지 이해가 되지 않는다.
+
+
+
+---
+
+(g) Compare four methods through specific measure and explain why you choose that criterion.
+
+
+일반적으로 recall과 precision을 구분하는 등 여러 지표를 사용해야 하는 이유는 1. 각 범주에 속할 확률이 정확히 일치하지 않고 2. 특정한 오류를 범했을 때의 위험이 다른 종류의 오류를 범했을 때의 위험보다 크기 때문이다. 지금은 그런 상황인가? 단기적으로 오를지 내릴지는 반반에 가까운 확률 게임이다.(앞의 summarise 표를 참고) 그렇다면, 'Up을 Down으로 잘못 판단하는 오류'와 'Down을 Up으로 잘못 판단하는 오류' 중 어느 것이 더 중대한 오류인가? 올인을 한다고 가정하면 'Up을 Down으로 잘못 판단하는 오류'가 더 중대하다. 잘못된 Down 포지션을 잡은 경우, 그 포지션을 '기다려서 수익을 보고 청산할 기회'는 영원히 없을 가능성이 있다. 즉 'Positive(Up : 1)를 Nagitive(Down : 0)로 잘못 판단하는 상황을 줄여야 한다.(FN 관리) 즉 recall을 사용한다.
+
+
+```{r}
+recall <- function(table){(table[2,2])/(table[2,1]+table[2,2])}
+recall(table_a)
+recall(table_b)
+recall(table_c)
+recall(table_d)
+recall(table_e)
+```
+
+
+modelc > modele > modela = modelb > modeld 순으로 recall 사용 기준 적절하다. 사실 이 정도 상황에서 Accuracy를 그냥 써도 별 상관은 없을 것이라고 생각한다. 비중 차이가 크게 나는 것도 아니고 이런 적극적인 매매를 할 거면 벌어야 할 때 못 버는 것도 큰 손해라서...

@@ -1,0 +1,155 @@
+---
+title: "ms2hw2_q2"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+set.seed(42)
+```
+
+
+
+# Q2
+
+
+## (a)
+
+
+Newton-Raphson methods는 최대가능도추정량을 구하는 과정에서 가능도방정식의 근이 존재하는 것을 알지만 그 값을 closed form으로 구하기 어려운 경우 그 값을 수치해석적으로 구하는 방법이다. 구체적으로, 테일러 정리를 이용하여 일차방정식으로 근사한 방정식을 반복적으로 적용하여 근을 구하고, 초깃값 ${\hat{\theta}}^{0}$으로는 흔히 적률이용추정량  ${\hat{\theta}}^{MME}$를 사용한다. 즉 이를 요약하면 다음과 같다.
+
+$${\hat{\theta}^{r+1}} = {\hat{\theta}^{r}} + [-{\ddot{l}}({\hat{\theta}^{r}})]^{-1}\times{\dot{l}}({\hat{\theta}^{r}}),  (r = 0, 1, ...),  {\hat{\theta}}^{0} = {\hat{\theta}}^{MME}$$ 
+
+
+해당 답안의 방정식은 김우철 저 수리통계학의 252페이지의 내용을 참고하여 작성되었다.
+
+
+한편, pdf of logistic distribution은 다음과 같이 주어진다.
+
+$$f(x : {\theta}, {\sigma}) = \frac{1}{{\sigma}}\frac{e^{\frac{(x-{\theta})}{{\sigma}}}}{(1+e^{\frac{(x-{\theta})}{{\sigma}}})^2}, x  {\in}  \mathbb{R}$$
+
+
+이로부터 초깃값으로 사용해야 할 MME추정량을 유도하면
+
+$${\hat{\theta}}_{MME} = \bar{X}$$
+$${\hat{\sigma}}_{MME} = \frac{\sqrt{3}}{\pi}{\sqrt{\frac{1}{n}\sum_{i=1}^n{(X_i-\bar{X})^{2}}}}$$
+
+와 같다. 즉 위의 값을 초기값으로 사용하며, 근사의 경우 해당 값과 실제 값의 차이를 반복적으로 찾아내면서 이전 값과 현재 값의 차이가 일정 수 이하로 떨어질 때까지 반복하면 된다. '일정 수'는 분석가가 지정하는 오차의 개념에 해당한다.
+
+
+
+## (b)
+
+
+우선 최대가 되어야 할 가능도함수와 초깃값이 될 MME추정량을 다음과 같이 계산한다.
+
+
+```{r}
+grd_theta <- function(x, t, s) {
+  dummy <- 0
+  for (i in x) {dummy <- dummy + exp((i-t)/s)/(1+exp((i-t)/s))}
+  return(-length(x)/s + (2/s)*dummy)
+}
+
+grd_sigma <- function(x, t, s) {
+  dummy <- 0
+  for (i in x) {dummy <- dummy + (i-t)*exp((i-t)/s)/(1+exp((i-t)/s))}
+  return(length(x)*t/s^2 - sum(x)/s^2 -length(x)/s + (2/s^2)*dummy)
+}
+
+grd_tt <- function(x, t, s) {
+  dummy <- 0
+  for (i in x) {dummy <- dummy + exp((i-t)/s)/(1+exp((i-t)/s))^2}
+  return(-2*dummy/s^2) 
+}
+
+grd_ts <- function(x, t, s) {
+  dummy <- 0
+  for (i in x) {dummy <- dummy + (exp((i-t)/s)*(1-exp((i-t)/s))+t/s-i/s)/(1+exp((i-t)/s))^2}
+  return(length(x)/s^2 + 2*dummy/s^2) 
+}
+
+grd_ss <- function(x, t, s) {
+  dummy <- 0
+  for (i in x) {dummy <- dummy + exp((i-t)/s)*(i-t)^2/((1+exp((i-t)/s))^2*(s^4)) - exp(2*(i-t)/s)*(i-t)^2/((1+exp((i-t)/s))^2*(s^4))  + 2*exp((i-t)/s)*(i-t)^2/((1+exp((i-t)/s))^2*(s^3))}
+  return(-2*sum(x)/(s^3) + 2*length(x)*t/s^3 + length(x)/s^3 - 2*dummy) 
+} 
+```
+
+
+```{r}
+x0 <- c(4.386638, 4.399465, 0.985526, 10.817260, -4.041197, 1.993944, -17.038107, -4.003944, 8.509904, -7.889066)
+t <- mean(x0)
+s <- (sqrt(3)/pi) * sqrt((var(x0)*9)/10)
+
+H <- matrix(c(-1*grd_tt(x0, t, s), -1*grd_ts(x0, t, s), -1*grd_ts(x0, t, s), -1*grd_ss(x0, t, s)), ncol = 2)
+G <- matrix(c(grd_theta(x0, t, s), grd_sigma(x0, t, s)))
+
+P <- matrix(c(t,s)) + solve(H)%*%G
+t <- P[1,1]
+s <- P[2,1]
+P
+```
+
+이와 같이 반복 알고리즘을 작성하면 된다. 초기값과 errorbound를 적용하여 최종 결과를 산출하면 다음과 같다.
+
+
+```{r}
+errorbound <- 0.001
+grd_theta <- function(x, t, s) {
+  dummy <- 0
+  for (i in x) {dummy <- dummy + exp((i-t)/s)/(1+exp((i-t)/s))}
+  return(-length(x)/s + (2/s)*dummy)
+}
+
+grd_sigma <- function(x, t, s) {
+  dummy <- 0
+  for (i in x) {dummy <- dummy + (i-t)*exp((i-t)/s)/(1+exp((i-t)/s))}
+  return(length(x)*t/s^2 - sum(x)/s^2 -length(x)/s + (2/s^2)*dummy)
+}
+
+grd_tt <- function(x, t, s) {
+  dummy <- 0
+  for (i in x) {dummy <- dummy + exp((i-t)/s)/(1+exp((i-t)/s))^2}
+  return(-2*dummy/s^2) 
+}
+
+grd_ts <- function(x, t, s) {
+  dummy <- 0
+  for (i in x) {dummy <- dummy + (exp((i-t)/s)*(1-exp((i-t)/s))+t/s-i/s)/(1+exp((i-t)/s))^2}
+  return(length(x)/s^2 + 2*dummy/s^2) 
+}
+
+grd_ss <- function(x, t, s) {
+  dummy <- 0
+  for (i in x) {dummy <- dummy + exp((i-t)/s)*(i-t)^2/((1+exp((i-t)/s))^2*(s^4)) - exp(2*(i-t)/s)*(i-t)^2/((1+exp((i-t)/s))^2*(s^4))  + 2*exp((i-t)/s)*(i-t)^2/((1+exp((i-t)/s))^2*(s^3))}
+  return(-2*sum(x)/(s^3) + 2*length(x)*t/s^3 + length(x)/s^3 - 2*dummy) 
+} 
+
+x0 <- c(4.386638, 4.399465, 0.985526, 10.817260, -4.041197, 1.993944, -17.038107, -4.003944, 8.509904, -7.889066)
+t <- mean(x0)
+s <- (sqrt(3)/pi) * sqrt((var(x0)*9)/10)
+
+k <- 0
+while (k <= 5) {
+  H <- matrix(c(-1*grd_tt(x0, t, s), -1*grd_ts(x0, t, s), -1*grd_ts(x0, t, s), -1*grd_ss(x0, t, s)), ncol = 2)
+  G <- matrix(c(grd_theta(x0, t, s), grd_sigma(x0, t, s)))
+
+  P <- matrix(c(t,s)) + solve(H)%*%G
+  t <- P[1,1]
+  s <- P[2,1]
+  k <- k + 1
+}
+P
+```
+
+
+

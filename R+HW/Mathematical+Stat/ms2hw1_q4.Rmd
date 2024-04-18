@@ -1,0 +1,333 @@
+---
+title: "ms2hw1_q4"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+set.seed(42)
+```
+
+
+
+# Question 4
+
+
+## (a)
+
+
+```{r}
+mme_unif <- function(n, a, b){
+  x <- runif(n, a, b)
+  t1 <- mean(x) - sqrt(3) * sd(x)
+  t2 <- mean(x) + sqrt(3) * sd(x)
+  c(t1, t2)
+}
+```
+
+runif(n, t1, t2)는 unif(t1, t2)를 따르는 확률변수 X를 따라 n회 시행한 결과를 추출하는, 즉 시행의 결과 나오는 n*1 vector가 X1, X2, ..., Xn에 대응되는 R 함수이다. 이를 기반으로 mme_unif(n, a, b) 함수를 정의하였다. 이는 모수가 (a,b)인 균등분포를 따르는 확률분포 X로부터 n회 mme를 시행하여 도출되는 theta1과 theta2의 mme를 return하는 함수이다.
+
+
+```{r}
+mmes_n3 <- tibble()
+for (i in 1:100) {
+  mmes_n3 = rbind(mmes_n3, c(i, mme_unif(3,2,7)))
+}
+colnames(mmes_n3) <- c('samplename', 'theta1', 'theta2')
+mmes_n3
+```
+
+mme2_n3은 theta1과 theta2 각각의 mme 추정량 100개를 저장한 tibble이다. 문제의 조건상 서로 다른 sample에 대해 각각 theta1과 theta2를 구하는 별도의 작업을 하는 것이 허용되지 않아 이와 같이 작업하였다.
+
+
+
+## (b)
+
+
+앞서 구한 theta_j1의 극한분포는 normal distribution이고 평균은 MME for theta1, 분산은 2((theta2 - theta1)^2)/15n = 10/9이다. 이에 따라 분산의 그래프를 그리면 다음과 같다.
+
+
+```{r}
+est_t1 <- mean(mmes_n3$theta1)
+hist(mmes_n3$theta1, probability = T, main = 'Histogram of MME for theta1 vs. Asymptotic Distribution of theta1', xlab = 'theta1')
+curve(dnorm(x, est_t1, sqrt(10)/3), add = T)
+```
+
+평균 부분의 차이가 있지만 n=3임을 고려하면 비슷해질 가능성이 있다.
+
+
+
+## (c)
+
+
+앞서 구한 theta_j2의 극한분포는 normal distribution이고 평균은 MME for theta2, 분산은 2((theta2 - theta1)^2)/15n = 10/9이다. 이에 따라 분산의 그래프를 그리면 다음과 같다.
+
+
+```{r}
+est_t2 <- mean(mmes_n3$theta2)
+hist(mmes_n3$theta2, probability = T, main = 'Histogram of MME for theta2 vs. Asymptotic Distribution of theta2', xlab = 'theta2')
+curve(dnorm(x, est_t2, sqrt(10)/3), add = T)
+```
+
+마찬가지로, 평균 부분의 차이가 있지만 n=3임을 고려하면 비슷해 보인다.
+
+
+
+## (d)
+
+
+여기서부터는, 앞서 제시된 모수 theta1, theta2의 값을 모르는 상태에서 신뢰구간을 통해 추정한다고 가정한다.(안다면 추정하는 의미가 없다.) 따라서, CI의 양 끝값에 있는 모수 theta1, theta2를 적절히 처리해야 하는데, 가장 간단한 방법은 theta1의 MME가 theta1으로, theta2의 MME가 theta2로 확률수렴한다는 사실을 통해 양 끝점의 theta1, theta2 자리에 theta1의 MME, theta2의 MME를 plug in하는 것이다. 해당 문제에서는 이에 따라 각 문제의 CI를 계산할 때 사용될 분산을 MME 추정량으로부터 계산하였다.
+
+
+```{r}
+mmes_n3 <- mmes_n3 %>%
+    mutate(se = sqrt(2*(theta2-theta1)^2/(15*3)), er = se*qnorm(0.95), t1_CILB = theta1 - er, t1_CIUB = theta1 + er, t2_CILB = theta2 - er, t2_CIUB = theta2 + er)
+mmes_n3
+```
+
+
+
+## (e)
+
+
+```{r}
+mmes_n3_t1 <- mmes_n3 %>%
+    mutate(contains_true = ifelse(t1_CILB < 2&t1_CIUB > 2, 1, 0))
+mean(mmes_n3_t1$contains_true)
+```
+
+따라서 신뢰구간 중 참값을 포함하는 것의 비율은 77%이다. 한편, 각 신뢰구간의 그림을 그려 보면 다음과 같다.
+
+
+```{r}
+ggplot(data = mmes_n3_t1, mapping = aes(y = samplename)) + 
+    geom_line(mapping = aes(x = 2), color = 'red') +
+    xlim(-3.5, 7.5) +
+    geom_errorbarh(mapping = aes(xmin = t1_CILB, xmax = t1_CIUB)) +
+    geom_point(mapping = aes(x = theta1), size = 0.75) +
+    labs(title = 'CIs from Methods of Moments Estimator for theta1 vs. true theta1', 
+         subtitle = 'red line in center stands for x = 2') +
+    xlab('theta1') +
+    ylab('sample name : j')
+```
+
+
+
+
+
+
+## (f)
+
+
+```{r}
+mmes_n3_t2 <- mmes_n3 %>%
+    mutate(contains_true = ifelse(t2_CILB < 7&t2_CIUB > 7, 1, 0))
+mean(mmes_n3_t2$contains_true)
+```
+
+따라서 신뢰구간 중 참값을 포함하는 것의 비율은 77%이다. 한편, 각 신뢰구간의 그림을 그려 보면 다음과 같다.
+
+
+```{r}
+ggplot(data = mmes_n3_t2, mapping = aes(y = samplename)) + 
+    geom_line(mapping = aes(x = 7), color = 'blue') +
+    xlim(0.5, 13.5) +
+    geom_errorbarh(mapping = aes(xmin = t2_CILB, xmax = t2_CIUB)) +
+    geom_point(mapping = aes(x = theta2), size = 0.75) +
+    labs(title = 'CIs from Methods of Moments Estimator for theta2 vs. true theta2', 
+         subtitle = 'blue line in center stands for x = 7') +
+    xlab('theta2') +
+    ylab('sample name : j')
+```
+
+
+
+## (g)
+
+
+### n = 50 case
+
+
+```{r}
+mmes_n50 <- tibble()
+for (i in 1:100) {
+  mmes_n50 = rbind(mmes_n50, c(i, mme_unif(50,2,7)))
+}
+colnames(mmes_n50) <- c('samplename', 'theta1', 'theta2')
+
+est_t1 <- mean(mmes_n50$theta1)
+hist(mmes_n50$theta1, probability = T, main = 'Histogram of MME for theta1 vs. Asymptotic Distribution of theta1', xlab = 'theta1')
+curve(dnorm(x, est_t1, sqrt(1/15)), add = T)
+
+est_t2 <- mean(mmes_n50$theta2)
+hist(mmes_n50$theta2, probability = T, main = 'Histogram of MME for theta2 vs. Asymptotic Distribution of theta2', xlab = 'theta2')
+curve(dnorm(x, est_t2, sqrt(1/15)), add = T)
+```
+
+n = 50으로 늘린 경우 상당히 유사해 보인다. 이제 신뢰구간들을 구성하면 theta1을 포함하는 신뢰구간의 비율은 89%, theta2를 포함하는 신뢰구간의 비율은 92%이다.
+
+
+```{r}
+mmes_n50 <- mmes_n50 %>%
+    mutate(se = sqrt(2*(theta2-theta1)^2/(15*50)), er = se*qnorm(0.95), t1_CILB = theta1 - er, t1_CIUB = theta1 + er, t2_CILB = theta2 - er, t2_CIUB = theta2 + er)
+
+#theta1
+mmes_n50_t1 <- mmes_n50 %>%
+    mutate(contains_true = ifelse(t1_CILB < 2&t1_CIUB > 2, 1, 0))
+mean(mmes_n50_t1$contains_true)
+
+ggplot(data = mmes_n50_t1, mapping = aes(y = samplename)) + 
+    geom_line(mapping = aes(x = 2), color = 'red') +
+    xlim(0.5, 3.5) +
+    geom_errorbarh(mapping = aes(xmin = t1_CILB, xmax = t1_CIUB)) +
+    geom_point(mapping = aes(x = theta1), size = 0.75) +
+    labs(title = 'CIs from Methods of Moments Estimator for theta1 vs. true theta1', 
+         subtitle = 'red line in center stands for x = 2') +
+    xlab('theta1') +
+    ylab('sample name : j')
+
+#theta2
+mmes_n50_t2 <- mmes_n50 %>%
+    mutate(contains_true = ifelse(t2_CILB < 7&t2_CIUB > 7, 1, 0))
+mean(mmes_n50_t2$contains_true)
+
+ggplot(data = mmes_n50_t2, mapping = aes(y = samplename)) + 
+    geom_line(mapping = aes(x = 7), color = 'blue') +
+    xlim(5.5, 8.5) +
+    geom_errorbarh(mapping = aes(xmin = t2_CILB, xmax = t2_CIUB)) +
+    geom_point(mapping = aes(x = theta2), size = 0.75) +
+    labs(title = 'CIs from Methods of Moments Estimator for theta2 vs. true theta2', 
+         subtitle = 'blue line in center stands for x = 7') +
+    xlab('theta2') +
+    ylab('sample name : j')
+```
+
+
+
+### n = 100 case
+
+
+```{r}
+mmes_n100 <- tibble()
+for (i in 1:100) {
+  mmes_n100 = rbind(mmes_n100, c(i, mme_unif(100,2,7)))
+}
+colnames(mmes_n100) <- c('samplename', 'theta1', 'theta2')
+
+est_t1 <- mean(mmes_n100$theta1)
+hist(mmes_n100$theta1, probability = T, main = 'Histogram of MME for theta1 vs. Asymptotic Distribution of theta1', xlab = 'theta1')
+curve(dnorm(x, est_t1, sqrt(1/30)), add = T)
+
+est_t2 <- mean(mmes_n100$theta2)
+hist(mmes_n100$theta2, probability = T, main = 'Histogram of MME for theta2 vs. Asymptotic Distribution of theta2', xlab = 'theta2')
+curve(dnorm(x, est_t2, sqrt(1/30)), add = T)
+```
+
+n = 100에서 매우 유사해졌다. 이제 CI들을 구성하면 그 비율은 0.86, 0.91이이 나온다. 이론상 수치인 0.9 주변에서 안정화된 것을 확인할 수 있다. (시드에 따라 구체적 수치는 달라짐, 해당 풀이에서는 시드로 42를 사용.)
+
+
+```{r}
+mmes_n100 <- mmes_n100 %>%
+    mutate(se = sqrt(2*(theta2-theta1)^2/(15*100)), er = se*qnorm(0.95), t1_CILB = theta1 - er, t1_CIUB = theta1 + er, t2_CILB = theta2 - er, t2_CIUB = theta2 + er)
+
+#theta1
+mmes_n100_t1 <- mmes_n100 %>%
+    mutate(contains_true = ifelse(t1_CILB < 2&t1_CIUB > 2, 1, 0))
+mean(mmes_n100_t1$contains_true)
+
+ggplot(data = mmes_n100_t1, mapping = aes(y = samplename)) + 
+    geom_line(mapping = aes(x = 2), color = 'red') +
+    xlim(0.5, 3.5) +
+    geom_errorbarh(mapping = aes(xmin = t1_CILB, xmax = t1_CIUB)) +
+    geom_point(mapping = aes(x = theta1), size = 0.75) +
+    labs(title = 'CIs from Methods of Moments Estimator for theta1 vs. true theta1', 
+         subtitle = 'red line in center stands for x = 2') +
+    xlab('theta1') +
+    ylab('sample name : j')
+
+#theta2
+mmes_n100_t2 <- mmes_n100 %>%
+    mutate(contains_true = ifelse(t2_CILB < 7&t2_CIUB > 7, 1, 0))
+mean(mmes_n100_t2$contains_true)
+
+ggplot(data = mmes_n100_t2, mapping = aes(y = samplename)) + 
+    geom_line(mapping = aes(x = 7), color = 'blue') +
+    xlim(5.5, 8.5) +
+    geom_errorbarh(mapping = aes(xmin = t2_CILB, xmax = t2_CIUB)) +
+    geom_point(mapping = aes(x = theta2), size = 0.75) +
+    labs(title = 'CIs from Methods of Moments Estimator for theta2 vs. true theta2', 
+         subtitle = 'blue line in center stands for x = 7') +
+    xlab('theta2') +
+    ylab('sample name : j')
+```
+
+
+
+### n = 200 case
+
+
+```{r}
+mmes_n200 <- tibble()
+for (i in 1:100) {
+  mmes_n200 = rbind(mmes_n200, c(i, mme_unif(200,2,7)))
+}
+colnames(mmes_n200) <- c('samplename', 'theta1', 'theta2')
+
+est_t1 <- mean(mmes_n200$theta1)
+hist(mmes_n200$theta1, probability = T, main = 'Histogram of MME for theta1 vs. Asymptotic Distribution of theta1', xlab = 'theta1')
+curve(dnorm(x, est_t1, sqrt(1/60)), add = T)
+
+est_t2 <- mean(mmes_n200$theta2)
+hist(mmes_n200$theta2, probability = T, main = 'Histogram of MME for theta2 vs. Asymptotic Distribution of theta2', xlab = 'theta2')
+curve(dnorm(x, est_t2, sqrt(1/60)), add = T)
+```
+
+n = 200에서도 theta1은 상당히 근접하였고, theta2 역시 그렇다. 신뢰구간이 모수를 포함하는 비율은 둘 모두 0.93이다. 
+
+
+```{r}
+mmes_n200 <- mmes_n200 %>%
+    mutate(se = sqrt(2*(theta2-theta1)^2/(15*200)), er = se*qnorm(0.95), t1_CILB = theta1 - er, t1_CIUB = theta1 + er, t2_CILB = theta2 - er, t2_CIUB = theta2 + er)
+
+#theta1
+mmes_n200_t1 <- mmes_n200 %>%
+    mutate(contains_true = ifelse(t1_CILB < 2&t1_CIUB > 2, 1, 0))
+mean(mmes_n200_t1$contains_true)
+
+ggplot(data = mmes_n200_t1, mapping = aes(y = samplename)) + 
+    geom_line(mapping = aes(x = 2), color = 'red') +
+    xlim(0.5, 3.5) +
+    geom_errorbarh(mapping = aes(xmin = t1_CILB, xmax = t1_CIUB)) +
+    geom_point(mapping = aes(x = theta1), size = 0.75) +
+    labs(title = 'CIs from Methods of Moments Estimator for theta1 vs. true theta1', 
+         subtitle = 'red line in center stands for x = 2') +
+    xlab('theta1') +
+    ylab('sample name : j')
+
+#theta2
+mmes_n200_t2 <- mmes_n200 %>%
+    mutate(contains_true = ifelse(t2_CILB < 7&t2_CIUB > 7, 1, 0))
+mean(mmes_n200_t2$contains_true)
+
+ggplot(data = mmes_n200_t2, mapping = aes(y = samplename)) + 
+    geom_line(mapping = aes(x = 7), color = 'blue') +
+    xlim(5.5, 8.5) +
+    geom_errorbarh(mapping = aes(xmin = t2_CILB, xmax = t2_CIUB)) +
+    geom_point(mapping = aes(x = theta2), size = 0.75) +
+    labs(title = 'CIs from Methods of Moments Estimator for theta2 vs. true theta2', 
+         subtitle = 'blue line in center stands for x = 7') +
+    xlab('theta2') +
+    ylab('sample name : j')
+```
+
+
+
+

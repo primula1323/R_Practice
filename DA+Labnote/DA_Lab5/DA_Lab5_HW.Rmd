@@ -1,0 +1,158 @@
+---
+title: "DA_Lab5_HW"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+library('mosaicData')
+library('mdsr')
+```
+
+
+
+# Problem 1
+
+
+```{r}
+qnorm(0.995)
+round(qnorm(0.995), 2)
+```
+
+95% CI를 위해 사용되는 Z_0.495의 근사치는 2(or 1.96)이다. 99% CI를 위해 사용되어야 하는 근사치는 확률변수 Z가 표준정규분포 N(0,1)을 따를 때 P(Z < a) = 1 - (1 - 0.99)/2가 되도록 하는 a의 값이다. 이 값은 R에서는 `qnorm(1 - (1 - 0.99)/2)`함수를 통해 앞의 코드와 같이 구할 수 있으며, 이 값을 소수점 아래 셋째 자리에서 반올림하면 2.58을 근사치로 사용할 수 있다.
+
+
+
+# Problem 2
+
+
+```{r}
+dfq2 <- Gestation %>% filter(is.na(age) == FALSE)
+q2_mean <- mean(dfq2$age)
+q2_sd <- sd(dfq2$age)
+CI_q2 <- c(q2_mean - 2*q2_sd, q2_mean + 2*q2_sd)
+CI_q2
+```
+
+
+
+# Problem 3
+
+
+```{r}
+q3_median <- median(dfq2$age)
+q3_median
+
+n_trial <- 200
+dfq2_booted <- 1:n_trial %>%
+  map_dfr(
+  ~dfq2 %>%
+  slice_sample(n = 100, replace = TRUE) %>%
+  summarise(median(age))
+  ) %>% mutate(n = 100)
+
+q3_med <- mean(dfq2_booted$`median(age)`)
+q3_sd <- sd(dfq2_booted$`median(age)`)
+CI_q3 <- c(q3_med - 2*q3_sd, q3_med + 2*q3_sd)
+CI_q3
+```
+
+
+
+# Problem 4
+
+
+```{r}
+dfq4_bootstrap <- tibble()
+
+for (i in 1:200) {
+  dfq4_temp <- slice_sample(dfq2, n = 100, replace = TRUE)
+  lmq4_temp <- lm(wt ~ age, data = dfq4_temp)
+  dfq4_bootstrap <- rbind(dfq4_bootstrap, coef(lmq4_temp))
+}
+
+colnames(dfq4_bootstrap) <- c('intercept', 'age')
+
+dfq4_bootstrap
+
+```
+
+
+Q1) 의도를 모르겠음. $Var(\hat{\beta_1}) = \frac{\sigma^2}{S_{xx}}$이고 $Var(\hat{\beta_0}) = \sigma^2(\frac{1}{n} + \frac{\bar{x}}{S_{xx}})$인데 각 1회의 복원추출마다 이 값을 직접 표본에서 계산해서 plug-in한 추정량을 계산한 뒤 이 값으로 하라는 건가? 아니면 그냥 부트스트랩 100회 한 계수 각각에서 median과 sd 계산해서 CI 계산하면 되나? 애초에 우리가 회귀계수 만든 추정량은 LSE 추정량인데 mean 기반이고, bootstrap으로 mean 이렇게 써도 되는 건가?
+
+
+Q2) 이렇게 `rbind()`로 1회 반복 시행마다 빈 리스트에 하나하나 더해가는 방식을 쓰면 마지막 시행 후 dataframe에서 변수 이름이 엉망진창이 됨. 이런 방식으로 접근할 경우 변수 이름 깔끔하게 쓰는 솔루션은 없나...?
+
+
+
+# Problem 5
+
+
+```{r}
+Macbeth <- Macbeth_raw %>%
+  str_split('\r\n') %>%
+  pluck(1)
+```
+
+이와 같이 Macbeth_raw에서 Macbeth의 각 lines를 추출하였다.
+
+
+## 5-1
+
+```{r}
+Macbeth %>%
+  str_subset('^  [A-Z]+,')
+```
+
+
+## 5-2
+
+```{r}
+Macbeth %>%
+  str_subset('[A-z]+-[A-z]+') %>%
+  str_extract('[A-z]+-[A-z]+')
+```
+
+
+
+# Problem 6
+
+
+```{r}
+strings <- c(
+  "This string has no hashtags",
+  "#hashtag city!",
+  "This string has a #hashtag",
+  "This string has #two #hashtags"
+)
+str_detect(strings, '(^| )#[A-z0-9]+( |$)')
+```
+
+
+
+# Problem 7
+
+```{r, eval=FALSE}
+text_lines <- tibble(
+  lines = c("This is the first line.",
+           "This line is hyphen- ",
+           "ated. It's very diff-",
+           "icult to use at present.")
+)
+
+text_lines
+remove_hyphen <- function(strsq) {
+  if 
+}
+```
+
+
+못풀었고... 아이디어는 1. 라인별로 if 마지막 단어에 하이픈 존재? 다음 줄 불러와서 단어 붙여서 return 2. 존재하지 않으면 그대로 return

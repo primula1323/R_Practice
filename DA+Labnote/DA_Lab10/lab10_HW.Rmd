@@ -1,0 +1,206 @@
+---
+title: "DA Lab10_HW"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+```{r setup, include=FALSE}
+library(mdsr)
+library(tidyverse)
+library(tidymodels)
+library(mosaicData)
+library(NHANES)
+```
+
+# Problem 1
+
+Investigators in the HELP (Health Evaluation and Linkage to Primary Care) study were interested in modeling the probability of being homeless (one or more nights spent on the street or in a shelter in the past six months vs. housed) as a function of age. Use the `HELPrct` data from the mosaicData package.
+
+```{r}
+df1 <- HELPrct
+set.seed(42)
+n <- nrow(df1)
+
+df1_parts <- df1 %>%
+  initial_split(prop = 0.75)
+
+df1_train <- df1_parts %>% training()
+
+df1_test <- df1_parts %>% testing()
+```
+
+
+
+## (a) Generate a confusion matrix for the null model and interpret the result.
+
+```{r}
+model_n1 <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(homeless ~ 1, data = df1_train)
+```
+
+```{r}
+yh_test <- as_tibble(predict(model_n1, df1_test, type = 'class'))
+y_test <- as_tibble(df1_test$homeless)
+cmtx <- cbind(yh_test, y_test) %>%
+  rename('yhat' = .pred_class, 'y' = value) %>%
+  group_by(yhat, y) %>%
+  summarise(n())
+
+cmtx
+#이렇게만 만들어 놓으면 '혼동행렬이랑 같은 결과를 확인할 수 있'기는 한데 혼동행렬이라고 하나요...?
+```
+
+null model이므로 predicted value yhat이 housed or homeless의 두 값 중 한 값으로만 존재할 수 있다.
+
+
+
+## (b) Fit and interpret logistic regression model for the probability of being homeless as a function of age.
+
+```{r}
+model_a1 <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(homeless ~ age, data = df1_train)
+
+
+predict(model_a1, new_data = df1_test, type = "class")
+```
+
+
+
+## (c) What is the predicted probability of being homeless for a 20 year old? For a 40 year old?
+
+```{r}
+tidy(model_a1)
+
+expit <- function(x) {
+  y <- exp(x)
+  return(y/(1+y))
+}
+
+expit(0.7032237 - 0.0185863 * 20)
+expit(0.7032237 - 0.0185863 * 40)
+```
+
+20세에서 0.5821237, 40세에서 0.4899443이다.
+
+
+
+## (d) Generate a confusion matrix for the second model and interpret the result.
+
+```{r}
+yh_test <- as_tibble(predict(model_a1, df1_test, type = 'class'))
+y_test <- as_tibble(df1_test$homeless)
+cmtx <- cbind(yh_test, y_test) %>%
+  rename('yhat' = .pred_class, 'y' = value) %>%
+  group_by(yhat, y) %>%
+  summarise(n()) %>%
+  ungroup()
+cmtx
+```
+
+```{r}
+#sensitivity : P(yhat=housed|y=housed)
+47/(47+24)
+#specificity : P(yhat=homeless|yhat=homeless)
+16/(16+24)
+```
+
+민감도는 꽤나 높으나, 특이도(homeless를 homeless로 찾아내는 정도)는 낮은 검사이다.
+
+
+
+---
+
+
+# Problem 2. What impact does the random number seed have on our results?
+
+```{r}
+url <-
+"http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data"
+census <- read_csv(
+  url,
+  col_names = c(
+    "age", "workclass", "fnlwgt", "education", 
+    "education_1", "marital_status", "occupation", "relationship", 
+    "race", "sex", "capital_gain", "capital_loss", "hours_per_week", 
+    "native_country", "income"
+  )
+) %>%
+  mutate(income = factor(income))
+```
+
+
+## (a) Repeat the Census logistic regression model that controlled only for capital gains but using a different random number seed (365 instead of 364) for the 80%/20% split. Would you expect big differences in the accuracy using the training data? Testing data?
+
+```{r}
+set.seed(365)
+n <- nrow(census)
+census_parts <- census %>%
+  initial_split(prop = 0.8)
+train <- census_parts %>%
+  training()
+test <- census_parts %>%
+  testing()
+train %>%
+  skim(capital_gain)
+test %>%
+  skim(capital_gain)
+```
+
+
+
+## (b) Repeat the process using a random number seed of 366. What do you conclude?
+
+```{r}
+set.seed(366)
+n <- nrow(census)
+census_parts <- census %>%
+  initial_split(prop = 0.8)
+train <- census_parts %>%
+  training()
+test <- census_parts %>%
+  testing()
+train %>%
+  skim(capital_gain)
+test %>%
+  skim(capital_gain)
+```
+
+(a), (b) 모두 크게 다른 결과가 나올 것으로 예상되지는 않는다. 단, 8:2 비율임을 고려할 때 test set에서 그나마 평균이 좀 널뛰기할 수는 있겠다 싶기는 한데(test set에서는 표본평균의 분산이 더 클 수 있을 것 같은데)... 실제 test set에서는 seed 366의 mean이 1008으로 다른 때의 1094, 1072에 비해 약간 낮은 편이고 이는 train set에서의 mean과도 차이가 60~70 가량 있는 편이다. 그러나 이 역시 실제 sd를 고려할 때 mean에서 큰 차이가 있는 수준이라 하기는 어렵다.
+
+
+
+---
+
+
+### Problem 3.
+Suppose that you are a data analyst! 
+
+Smoking is an important public health concern. Use the NHANES data from the NHANES package to develop model that identifies predictors of current smoking among those 20 or older. (Hint: note that the SmokeNow variable is missing for those who have never smoked: you will need to recode the variable to construct your outcome variable.) Use several models and compare them to obtain your result.
+
+```{r}
+df3 <- NHANES %>% 
+  filter(Age >= 20, !is.na(SmokeNow))
+
+model31 <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(SmokeNow ~ Gender + Education + Age, data = df3)
+model31
+
+model32 <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(SmokeNow ~ Age + Education + Pulse, data = df3)
+model32
+
+model33 <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(SmokeNow ~ Age + Pulse, data = df3)
+model33
+```
+

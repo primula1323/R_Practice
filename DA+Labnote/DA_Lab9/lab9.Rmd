@@ -1,0 +1,389 @@
+---
+title: "Data Analysis and Lab."  
+subtitle: 'Lab 9: Classification 1'
+author: "Suhwan Bong"
+date: "2023-11-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+We will follow the chapter 4 of `Introduction to Statistical Learning`.
+
+```{r}
+library(ISLR2)
+library(dplyr)
+head(Default)
+```
+
+In this lab, we will illustrate the concept of classification using the simulated `Default` data set. We are interested in predicting whether an individual will default on his or her credit card payment, on the basis of annual income and monthly credit card balance. We have plotted annual income and monthly credit card balance for a subset of 10000 individuals. We learn how to build a model to predict default($Y$) for any given value of balance($X_1$) and income($X_2$). Since $Y$ is not quantitative, the simple linear regression model is not a good choice.
+
+![Default data set](default.png)
+
+
+## 1. Classification Methods
+### 1-1. Logistic Regression
+Rather than modeling the response $Y$ directly, logistic regression models the probability that $Y$ belongs to a particular category. For the `Default` data, logistic regression models the probability of default. For example, the probability of default given balance can be written as
+$$
+\Pr(\text{default} = \text{Yes} \vert \text{balance})
+$$
+
+The values of $\Pr(\text{default} = \text{Yes} \vert \text{balance})$, which we abbreviate $p$, will range between 0 and 1. Then for any given value of balance, a prediction can be made for default. For example, one might predict "default = Yes" for any individual for whom $p>0.5$. Alternatively, if a company wishes to be conservative in predicting individuals who are at risk for default, then they may choose to use a lower threshold, such as $p>0.1$.
+
+In logistic regression, we use the logistic function
+$$
+p(X) = \frac{e^{\beta_0+\beta_1 X}}{1+ e^{\beta_0+\beta_1 X}}
+$$
+To fit the model, we use a maximum likelihood method. We also find that 
+$$
+\frac{p(X)}{1-p(X)} = e^{\beta_0+\beta_1 X}
+$$
+The quantity $\frac{p(X)}{1-p(X)}$ is called the odds, that can take on any value between 0 and infinity. By taking the logarithm of both sides,
+$$
+\text{log}(\frac{p(X)}{1-p(X)}) = \beta_0+\beta_1 X
+$$
+The left-hand side is called the log odds or logit. In logistic regression, increasing $X$ by one unit changes the log odds by $\beta_1$. But regardless of the value of $X$, if $\beta_1$ is positive then increasing $X$ will be associated with increasing $p(X)$, and if $\beta_1$ is negative then increasing $X$ will be associated with decreasing $p(X)$.
+
+```{r}
+model1 = glm(default ~ balance, family = binomial, data = Default)
+summary(model1)
+```
+Thus, we can see that $\hat\beta_1 = 0.0055$. This indicates that an increase in balance is associated with an increase in the probability of default. To be precise, a one-unit increase in balance is associated with an increase in the log odds of default by 0.0055 units.
+
+The z-statistic in table plays the same role as the t-statistic in the linear regression output. Large (absolute) value of the z-statistic indicates evidence against the null hypothesis $H_0:\beta_1 = 0$.This null hypothesis implies that $p(X) = \frac{e^\beta_0}{1+e^\beta_0}$. In other words, the probability of default does not depend on balance. If the p-value associated with balance is tiny, we can reject $H_0$.
+
+```{r}
+model2 = glm(default ~ balance + income, family = binomial, data = Default)
+summary(model2)
+pred = model2$fitted.values>0.5
+table_lr = table(real = Default$default, pred)
+table_lr
+```
+
+If we want to predict the default probability for an individual with a balance of $1,000$ and income of $20,000$ is:
+```{r}
+predict(model1, newdata = data.frame(balance = 1000, income = 20000), type = "response")
+predict(model2, newdata = data.frame(balance = 1000, income = 20000), type = "response")
+```
+
+We sometimes wish to classify a response variable that has more than two classes. For example, we have three categories of medical condition in the emergency room: stroke, drug overdose, epileptic seizure. However, the logistic regression approach that we have seen in this section only allows for $K=2$ classes for the response variable.
+
+It turns out that it is possible to extend the two-class logistic regression approach to the setting of $K>2$ classes. This extension is sometimes known as multinomial logistic regression. To do this, we first select a single class to serve as the baseline; without loss of generality, we select the $K$th class for this role.
+$$
+\Pr(Y=k\vert X = x) = \frac{e^{\beta_{k0}+\beta_{k1}x_1 + \cdots + \beta_{kp}x_p}}{1+\sum_{l=1}^{K-1}e^{\beta_{l0}+\beta_{l1}x_1 + \cdots + \beta_{lp}x_p}}
+$$
+for $k = 1,2,\dots,K-1$. Also,
+$$
+\text{log}(\frac{\Pr(Y=k\vert X=x)}{\Pr(Y=K\vert X=x)}) = \beta_{k0}+\beta_{k1}x_1 + \cdots + \beta_{kp}x_p
+$$
+for $k = 1,2,\dots,K-1$.
+
+로지스틱 리그레션은 k가 많은 경우에는 일단 쓸 이유 없음. 머신러닝을 쓰는 게 나으니... 특히 프리딕션에만 관심 있는 경우는 더 그렇고.
+X=x일 때 Y일 확률을 직접 모델링하는 상황. 앞으로는 '분포'를 가정함.
+
+
+### 1-2. LDA
+Logistic regression involves directly modeling $\Pr(Y=k \vert X=x)$ using the logistic function. In statistical jargon, we model the conditional distribution of the response $Y$, given the predictors $X$. We then use Bayes Theorem to flip the conditional probabilities. When the distribution of $X$ within each class is assumed to be normal, it turns out that the model is very similar in form to logistic regression.(Y가 주어진 때 x의 분포를 가정)
+
+Why do we need another method, when we have logistic regression?
+- When there is substantial separation between the two classes, the parameter estimates for the logistic regression model are surprisingly unstable. The methods that we consider in this section do not suffer from this problem.
+- If the distribution of the predictors X is approximately normal in each of the classes and the sample size is small, then the approaches in this section may be more accurate than logistic regression.
+- The methods in this section can be naturally extended to the case of more than two response classes. 
+
+Suppose that we wish to classify an observation into one of $K$ classes, where $K\geq 2$. Let $\pi_k$ represent the overall or prior probability that a randomly chosen observation comes from the $k$th class. Let $f_k(X) = \Pr(X\vert Y=k)$ denote the density function of X for an observation that comes from the $k$th class. Bayes Theorem states that
+$$
+\Pr(Y=k \vert X=x) = \frac{\pi_kf_k(x)}{\sum_{l=1}^K\pi_lf_l(x)}
+$$
+We will use the abbreviation $p_k(x) = \Pr(Y=k \vert X=x)$; this is the posterior probability that an observation $X=x$ belongs to the $k$th class, given the predictor value for that observation. We will discuss three classifiers that use different estimates of $f_k(x)$ to approximate the Bayes classifier: linear discriminant analysis (LDA), quadratic discriminant analysis (QDA), and naive Bayes.
+
+We will consider $p=1$ case. We would like to obtain an estimate for $f_k(x)$ in order to estimate $p_k(x)$. We will then classify an observation to the class for which $p_k(x)$ is the greatest. To estimate $f_k(x)$, we will first make some assumptions about its form.
+
+In particular, we assume that $f_k(x)$ is Gaussian with mean $\mu_k$ and variance $\sigma_k^2$. Let us further assume that $\sigma_1^2 = \cdots = \sigma_K^2 = \sigma^2$. By plugging-in,(등분산 가정, 상수가 다 똑같으니 계산할 필요 X, 교수님은 직접 계산하기를 원함.)
+$$
+p_k(x) = \frac{\pi_k\frac{1}{\sqrt{2\pi\sigma^2}}e^{-\frac{1}{2\sigma^2}(x-\mu_k)^2}}{\sum_{l=1}^K \pi_l\frac{1}{\sqrt{2\pi\sigma^2}}e^{-\frac{1}{2\sigma^2}(x-\mu_l)^2}}
+$$
+The Bayes classifier involves assigning an observation $X=x$ into the class for which the probability is largest. Taking the log and rearranging, it is equivalent to classifying to the class for which
+$$
+\delta_k(x) = x\frac{\mu_k}{\sigma^2}-\frac{\mu_k^2}{2\sigma^2}+\text{log}(\pi_k)
+$$
+is largest. For instance, if $K=2$ and $\pi_1 = \pi_2$, then the Bayes classifier assigns an observation to class 1 if $2x(\mu_1-\mu_2)>\mu_1^2-\mu_2^2$, and to class 2 otherwise. The Bayes decision boundary is the point for which $\delta_1(x) = \delta_2(x)$; one can show that this amounts to
+$$
+x = \frac{\mu_1+\mu_2}{2}
+$$
+![](LDA1.png)
+In linear discriminant analysis (LDA), we estimate $\mu_1,\cdots,\mu_K,\pi_1,\cdots,\pi_K,\sigma^2$. We plug in estimates to estimate the posterior probabilities.(분류 기준이 '선'이므로 LDA : 문제는 앞의 값을 알 수 없으므로 다 추정해서 대입해야 함.)
+$$
+\hat\delta_k(x) = x\frac{\hat\mu_k}{\hat\sigma^2} - \frac{\hat\mu_k^2}{2\hat\sigma^2} + \text{log}(\hat\pi_k)
+$$
+In the case of $K>1$, LDA also can be used.
+![](LDA2.png)
+
+In R, we can perform LDA in order to classify the `default` data set.
+
+```{r}
+library(MASS)
+model3 = lda(default ~ balance, data = Default)
+model3
+plot(model3)
+predict(model3)$class[1:10]
+predict(model3)$posterior[1:10]
+```
+
+If we use the both variables,
+```{r}
+model4 = lda(default ~ balance + income, data = Default)
+table_lda = table(Real = Default$default, Est = predict(model4)$class)
+table_lda
+```
+
+
+### 1-3. QDA
+Like LDA, the QDA classifier results from assuming that the observations from each class are drawn from a Gaussian distribution, and plugging estimates for the parameters into Bayes Theorem in order to perform prediction. However, QDA assumes that each class has its own covariance matrix. That is, it assumes that an observation from the $k$th class is of the form $X\sim N(\mu_k, \Sigma_k)$. Under this assumption, the Bayes classifier assigns an observation $X=x$ to the class for which 
+$$
+\delta_k(x) = -\frac{1}{2}(x-\mu_k)^t \Sigma_k^{-1}(x-\mu_k) - \frac{1}{2}\text{log}\vert\Sigma_k\vert + \text{log}\pi_k
+$$
+is largest. So the QDA classifier involves plugging estimates for $\Sigma_k, \mu_k, \pi_k$. Unlike LDA, the quantity $x$ appears as a quadratic function in QDA. This is where QDA gets its name.
+
+In LDA and QDA, there is a bias-variance trade-off. When there are $p$ predictors, estimating a covariance matrix requires estimating $\frac{p(p+1)}{2}$ parameters. QDA estimates a separate covariance matrix for each class, for a total of $\frac{Kp(p+1)}{2}$ parameters. Consequently, LDA is a much less flexible classifier than QDA, and so has substantially lower variance. However, if the assumption that the covariance matrix is common in LDA does not hold, LDA suffers from high bias.
+
+In R,
+```{r}
+model5 = qda(default ~ balance, data = Default)
+model5
+predict(model5)$class[1:10]
+predict(model3)$posterior[1:10]
+```
+
+If we use the both variables,
+```{r}
+model6 = qda(default ~ balance + income, data = Default)
+table_qda = table(Real = Default$default, Est = predict(model6)$class)
+table_qda
+```
+
+LDA, QDA 모두 실제 yes를 yes로 잘 예측하지 못하는 문제 있음.
+
+
+
+### 1-4. Naive Bayes
+In previous section, we used Bayes Theorem to develop the LDA and QDA classifiers. Now, we use Bayes Theorem to motivate the popular naive Bayes classifier.
+
+![](NB.png)
+
+Recall the Bayes Theorem, we need to estimate $\pi_1, \cdots, \pi_K, f_1, \cdots, f_K$. Estimating $\pi_1, \cdots, \pi_K$ is simple, however, estimating $f_1, \cdots, f_K$ is more subtle. The naive Bayes classifier takes a different tack for estimating $f_1, \cdots, f_K$. Instead of assuming that these functions belong to a particular family of distributions, we instead make a single assumption:
+$$
+\text{Within the kth class, the p predictors are independent.}
+$$
+Stated mathematically, this assumption means that for $k=1,2,\cdots,K$,
+$$
+f_k(x) = f_{k1}(x_1) \times f_{k2}(x_2) \times \cdots \times f_{kp}(x_p)
+$$
+where $f_{kj}$ is the density function of the $j$th predictor among observations in the $k$th class. Since estimating a joint distribution requires such a huge amount of data, naive Bayes assumption introduces some bias, but reduces variance, leading to a classifier that works quite well in practice as a result of the bias-variance trade-off.
+
+Once we have made the naive Bayes assumption, we can plug-in to obtain
+$$
+\Pr(Y=k\vert X=x) = \frac{\pi_k\times f_{k1}(x_1) \times f_{k2}(x_2) \times \cdots \times f_{kp}(x_p)}
+{\sum_{l=1}^K\pi_l\times f_{l1}(x_1) \times f_{l2}(x_2) \times \cdots \times f_{lp}(x_p)}
+$$
+for $k = 1,2,\cdots, K$. (1차원 pdf 예측 상황임 - bias 생길 수 있지만 var 감소, 많은 경우 이와 같은 것이 효율적.)
+
+In R,
+```{r}
+library(e1071)#for naiveBayes
+model7 = naiveBayes(default ~ balance, data = Default)
+model7
+```
+
+To use the both variables,
+```{r}
+model8 = naiveBayes(default ~ income + balance, data = Default)
+table_nb = table(real = Default$default, pred = predict(model8, Default))
+table_nb
+```
+
+## 2. Comparison of Classification Methods
+
+We may compare four methods for the classification.
+```{r}
+table_lr;table_lda;table_qda;table_nb
+```
+
+Which method is the best method? There are several measures to answer the question.
+
+$$
+\text{Accuracy}=\frac{\text{TP+TN}}{\text{TP+FP+TN+FN}}
+$$
+
+- Accuracy
+```{r}
+accuracy = function(table){(table[1,1]+table[2,2])/sum(table)}
+accuracy(table_lr)
+accuracy(table_lda)
+accuracy(table_qda)
+accuracy(table_nb)
+```
+
+보통 특정 상황이 dominate면 accuracy의 의미 감소(무조건 yes/no여도 정확도는 상승할 수 있음)
+
+
+$$
+\text{Sensitivity}=\frac{\text{TP}}{\text{TP+FN}}
+$$
+
+- Sensitivity(보통 스펙시피티와) (Recall)
+```{r}
+sensitivity = function(table){(table[2,2])/(table[2,1]+table[2,2])}
+sensitivity(table_lr)
+sensitivity(table_lda)
+sensitivity(table_qda)
+sensitivity(table_nb)
+```
+
+$$
+\text{Specificity}=\frac{\text{TN}}{\text{TN+FP}}
+$$
+
+- Specificity
+```{r}
+specificity = function(table){(table[1,1])/(table[1,1]+table[1,2])}
+specificity(table_lr)
+specificity(table_lda)
+specificity(table_qda)
+specificity(table_nb)
+```
+
+$$
+\text{Precision}=\frac{\text{TP}}{\text{TP+FP}}
+$$
+- Precision(보통 리콜과)
+```{r}
+precision = function(table){(table[2,2])/(table[1,2]+table[2,2])}
+precision(table_lr)
+precision(table_lda)
+precision(table_qda)
+precision(table_nb)
+```
+
+$$
+\text{F-1Measure}=\frac{2\times\text{Recall}\times\text{Precision}} {\text{Recall+Precision}}
+$$
+
+- F-1 score
+```{r}
+f1 = function(table){2*sensitivity(table)*precision(table)/(sensitivity(table)+precision(table))}
+f1(table_lr)
+f1(table_lda)
+f1(table_qda)
+f1(table_nb)
+```
+
+## 3. Beyond the Traditional Logistic Regression
+
+## 3-1. Softmax Logistic Regression
+
+Another way of expressing the above multinomial logistic regression is called a softmax regression. The softmax function takes an input a vector $z$ of $K$ real numbers, and normalizes it into a probability distribution consisting of $K$ probabilities proportional to the exponentials of the input numbers. The standard softmax function $\sigma : \mathbb{R}^K \xrightarrow{} (0,1)^K$ where $K \geq 1$ is defined by the formula
+$$
+\sigma(\mathbf{z})_i = \frac{e^{z_i}}{\sum_{j=1}^k e^{z_j}}, \quad i = 1,\dots, K \text{  and  } \mathbf{z}=(z_1, \dots, z_K)\in\mathbb{R}^K.
+$$
+
+In softmax regression, the model is given as
+$$
+\hat p_k = \sigma(\mathbf{s}(\mathbf{x}))_k = \frac{\exp(s_k(\mathbf{x}))}{\sum_{j=1}^K \exp (s_j(\mathbf{x}))}
+$$
+
+where $s_k(\mathbf{x}) = \mathbf{x}^\top \mathbf{\theta}_k$ is a softmax score for class $k$.
+
+```{r}
+head(iris)
+table(iris$Species)
+#glm(as.factor(Species) ~ ., data = iris)
+```
+
+We use the `multinom` function from the `nnet` package to estimate a multinomial logistic regression model.
+
+```{r}
+library(nnet)
+data <- iris %>% mutate(Species = relevel(Species, ref = "setosa"))
+multi <- multinom(Species ~ ., data = data)
+summary(multi)
+```
+
+We will compute the z statistics and p-values.
+
+```{r}
+z <- summary(multi)$coefficients/summary(multi)$standard.errors
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+```
+
+None of these coefficients is significant...! 
+
+배리언스도 높고....
+
+```{r}
+head(fitted(multi))
+predictions <- predict(multi, type = "class")
+
+table(iris$Species, predictions)
+```
+
+## 3-2. Penalized Logistic Regression
+We know that the log-likelihood is given as
+
+$$
+\sum_{i = 1}^n y_i \log(q_i) +(1-y_i) \log(1-q_i)
+$$
+
+where $q_i = p(y_i\vert x_i)$ (See Lecture Note). Many of the "model + loss" combinations can be motivated using the likelihood function.
+
+$$
+Q(\beta\vert\mathbf{X}, \mathbf{y}) = -\sum_{i = 1}^n \{y_i \log(q_i) +(1-y_i) \log(1-q_i)\} + P_\lambda(\beta)
+$$
+
+The penalty terms can determine the penalized regression methods (Ridge, Lasso, MCP, or Elastic net). We will use the R function `glmnet()` from `glmnet` package for computing the penalized logistic regression.
+
+x는 design matrix로, y는 vector로, 특히 x가 범주형이면 encoding을.
+
+```{r}
+library(glmnet)
+x <- as.matrix(Default[,3:4])
+y <- ifelse(Default$default == "Yes", 1, 0)
+ridge.model = glmnet(x, y, family = binomial, alpha = 0, data = Default, lambda = 0.001)
+lasso.model = glmnet(x, y, family = binomial, alpha = 1, data = Default, lambda = 0.001)
+```
+
+As we learned last class, alpha determines the elastic net mixing parameter (1 for lasso, 0 for ridge, elastic net regression, otherwise).
+
+```{r}
+ridge.prob <- as.vector(predict(ridge.model, s = 0.001, type = "response", newx = x))
+ridge.predictions <- ifelse(ridge.prob >= 0.5, 1, 0)
+table(Default$default, ridge.predictions)
+
+lasso.prob <- predict(lasso.model, s = 0.001, type = "response", newx = x)
+lasso.predictions <- ifelse(lasso.prob >= 0.5, 1, 0)
+table(Default$default, lasso.predictions)
+```
+
+## 4. Exercises
+We will use `Smarket` data from `ISLR2` library. This data set consists of percentage returns for the S&P 500 stock index over 1, 250 days, from the beginning of 2001 until the end of 2005. For each date, we have recorded
+the percentage returns for each of the five previous trading days, Lag1 through Lag5. We have also recorded Volume (the number of shares traded on the previous day, in billions), Today (the percentage return on the date
+in question) and Direction (whether the market was Up or Down on this date). Our goal is to predict Direction (a qualitative response) using the other features.
+```{r}
+head(Smarket)
+```
+
+(a) Fit the logistic regression model and explain the result.
+
+(b) Fit the LDA model and explain the result.
+
+(c) Fit the QDA model and explain the result.
+
+(d) Fit the naive Bayes model and explain the result.
+
+(e) Fit the penalized logistic regression model and explain the result.
+
+(f) Make a contingency table for (a) to (e).
+
+(g) Compare four methods through specific measure and explain why you choose that criterion.

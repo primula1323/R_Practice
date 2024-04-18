@@ -1,0 +1,75 @@
+---
+title: "DA_Midterm"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+---
+
+# Lab 1 : R markdown
+
+
+```{r library}
+library(tidyverse)
+```
+
+
+
+<https://www.naver.com/>
+
+
+[네이버](https://www.naver.com/)
+
+
+
+
+---
+
+# Lab 2 : ggplot2
+
+
+```{r}
+ggplot(data = mpg) #make coordinate system
+```
+
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy))
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = class))
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_wrap(~ class)
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_grid(drv ~ cyl)
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_grid(drv ~ .)
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_grid(. ~ drv)
+```
+
+
+
+
+
+
+
+---
+
+# Lab 3 : 
+
+
+
+
+
+
+

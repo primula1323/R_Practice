@@ -1,0 +1,289 @@
+---
+title: "Data Analysis and Lab HW3"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(tidyverse)
+library(NHANES)
+library(ISLR2)
+library(e1071)
+library(pROC)#for 1.e
+```
+
+
+# Problem 1
+
+
+Step 1. 
+
+```{r}
+df <- NHANES %>%
+  mutate(male = ifelse(Gender == 'male', 1, 0), white = ifelse(Race1 == 'White', 1, 0), black = ifelse(Race1 == 'Black', 1, 0), hs = ifelse(Education == 'High School'|Education == 'Some College'|Education == 'College Grad', 1, 0), income_high = ifelse(HHIncome == "75000-99999"|HHIncome == "more 99999", 1, 0), income_low = ifelse(HHIncome == " 0-4999"|HHIncome == " 5000-9999"|HHIncome ==   "10000-14999"|HHIncome == "15000-19999"|HHIncome == "20000-24999", 1, 0), own = ifelse(HomeOwn == 'Own', 1, 0), dia_yes = ifelse(Diabetes == 'Yes', 1, 0)) %>%
+  dplyr::select(male, white, black, hs, income_high, income_low, own, BMI, Age, dia_yes, Height) 
+
+df <- cbind(df, complete.cases(df)) %>% filter(complete.cases(df) == TRUE)
+
+nrow(df)
+
+df2 <- df %>%
+  cbind(1:nrow(df)) %>%
+  rename(ids = '1:nrow(df)') 
+
+df2_test <- df2 %>% filter(ids%%10 == 0)
+df2_train <- df2 %>% filter(ids%%10 != 0)
+y.dia <- df2_test$dia_yes
+y.diat <- df2_train$dia_yes
+```
+
+
+## (a)
+
+
+```{r}
+lm1.pr <- glm(dia_yes ~ BMI, family = binomial, data = df2_train)
+yhat.lm1t <- ifelse(predict.glm(lm1.pr, df2_train, type = 'response') >= 0.5, 1, 0)
+
+table(y.diat, yhat.lm1t)
+```
+
+
+## (b)
+
+
+```{r}
+TP <- 7
+TN <- 5301
+FP <- 6
+FN <- 592
+
+#Accuracy
+(TP + TN)/(TP + TN + FP + FN)
+#Sensitivity, Recall
+TP/(TP + FN)
+#Specificity
+TN/(TN + FP)
+#Precision
+TP/(TP + FP)
+```
+
+
+
+## (c)
+
+
+### Model 2
+
+```{r}
+lm2.pr <- glm(dia_yes ~ BMI + male + Age, family = binomial, data = df2_train)
+yhat.lm2t <- ifelse(predict.glm(lm2.pr, df2_train, type = 'response') >= 0.5, 1, 0)
+table(y.diat, yhat.lm2t)
+(5277+28)/5906
+```
+
+### Model 3
+
+```{r}
+lm3.pr <- glm(dia_yes ~ BMI + male + Age + white + black, family = binomial, data = df2_train)
+yhat.lm3t <- ifelse(predict.glm(lm3.pr, df2_train, type = 'response') >= 0.5, 1, 0)
+table(y.diat, yhat.lm3t)
+(5267+40)/5906
+```
+
+### Model 4
+
+```{r}
+lm4.pr <- glm(dia_yes ~ BMI + male + Age + white + black + income_high + income_low, family = binomial, data = df2_train)
+yhat.lm4t <- ifelse(predict.glm(lm4.pr, df2_train, type = 'response') >= 0.5, 1, 0)
+table(y.diat, yhat.lm4t)
+(5254+39)/5906
+```
+
+### Model 5
+
+```{r}
+lm5.pr <- glm(dia_yes ~ BMI + male + Age + white + black + income_high + income_low + hs + own, family = binomial, data = df2_train)
+yhat.lm5t <- ifelse(predict.glm(lm5.pr, df2_train, type = 'response') >= 0.5, 1, 0)
+table(y.diat, yhat.lm5t)
+(5252+44)/5906
+```
+
+각 model의 마지막의 표는 혼동행렬, 최종 숫자는 accuracy이다.
+
+
+
+## (d)
+
+
+### Model 1
+
+```{r}
+lm1.pr <- glm(dia_yes ~ BMI, family = binomial, data = df2_train)
+yhat.lm1 <- ifelse(predict.glm(lm1.pr, df2_test, type = 'response') >= 0.5, 1, 0)
+table(y.dia, yhat.lm1)
+586/656
+2/70
+584/586
+```
+
+### Model 2
+
+```{r}
+lm2.pr <- glm(dia_yes ~ BMI + male + Age, family = binomial, data = df2_train)
+yhat.lm2 <- ifelse(predict.glm(lm2.pr, df2_test, type = 'response') >= 0.5, 1, 0)
+table(y.dia, yhat.lm2)
+587/656
+3/70
+584/586
+```
+
+### Model 3
+
+```{r}
+lm3.pr <- glm(dia_yes ~ BMI + male + Age + white + black, family = binomial, data = df2_train)
+yhat.lm3 <- ifelse(predict.glm(lm3.pr, df2_test, type = 'response') >= 0.5, 1, 0)
+table(y.dia, yhat.lm3)
+587/656
+5/65
+582/586
+```
+
+### Model 4
+
+```{r}
+lm4.pr <- glm(dia_yes ~ BMI + male + Age + white + black + income_high + income_low, family = binomial, data = df2_train)
+yhat.lm4 <- ifelse(predict.glm(lm4.pr, df2_test, type = 'response') >= 0.5, 1, 0)
+table(y.dia, yhat.lm4)
+582/656
+6/70
+576/586
+```
+
+### Model 5
+
+```{r}
+lm5.pr <- glm(dia_yes ~ BMI + male + Age + white + black + income_high + income_low + hs + own, family = binomial, data = df2_train)
+yhat.lm5 <- ifelse(predict.glm(lm5.pr, df2_test, type = 'response') >= 0.5, 1, 0)
+table(y.dia, yhat.lm5)
+583/656
+6/70
+577/586
+```
+
+각 model의 마지막 표는 혼동행렬, 최종 숫자 세 개는 차례대로 Accuracy, Sensitivity, Specificity이다.
+
+
+
+## (e)
+
+본래 코드로 문항을 풀지 못해 해당 문항에서는 수업 시간에 다뤄지지 않은 패키지인 `pROC` package를 다운로드받아 사용하였음.
+
+
+```{r, eval=FALSE}
+roc(y.dia, yhat.lm1, plot = TRUE)
+roc(y.dia, yhat.lm2, plot = TRUE)
+roc(y.dia, yhat.lm3, plot = TRUE)
+roc(y.dia, yhat.lm4, plot = TRUE)
+roc(y.dia, yhat.lm5, plot = TRUE)
+```
+
+0.5352로 AUC가 가장 높은 model 5를 선택하게 된다.
+
+
+
+# Problem 2
+
+```{r}
+df3 <- Weekly
+df3_tr <- df3 %>% filter(Year <= 2008)
+df3_te <- df3 %>% filter(Year >= 2009)
+realDir <- df3_te$Direction
+```
+
+
+## (a)
+
+
+```{r}
+logis_model <- glm(Direction ~ Lag2, family = binomial, data = df3_tr)
+logis_model
+predDir1 <- ifelse(predict.glm(logis_model, newdata = df3_te, type = 'response') >= 0.5, 'Up', 'Down')
+```
+
+```{r}
+table(realDir, predDir1)
+65/104
+```
+
+'Overall fraction of correct predictios for the held out data'의 정확한 의미를 알기 곤란하지만 일단 train set에서 fitting된 model의 test set에서의 Accuracy를 의미하는 것으로 이해하면, (9+56)/(104) = 0.625이다.
+
+
+
+## (b)
+
+
+```{r}
+lda_model <- lda(Direction ~ Lag2, data = df3_tr)
+lda_model
+predDir2 <- predict(lda_model, newdata = df3_te)$class
+```
+
+```{r}
+table(realDir, predDir2)
+65/104
+```
+
+logistic regression과 동일한 결과가 나온다.
+
+
+## (c)
+
+
+```{r}
+qda_model <- qda(Direction ~ Lag2, data = df3_tr)
+qda_model
+predDir3 <- predict(qda_model, newdata = df3_te)$class
+```
+
+```{r}
+table(realDir, predDir3)
+61/104
+```
+
+쓸모없는 모델이 되어 버렸다. 무조건 Up으로 보내는데...
+
+
+
+## (d)
+
+
+```{r}
+NB_model <- naiveBayes(Direction ~ Lag2, data = df3_tr)
+NB_model
+predDir4 <- predict(NB_model, newdata = df3_te)
+```
+
+```{r}
+table(realDir, predDir4)
+61/104
+```
+
+
+쓸모없는 모델이 되어 버렸다. 무조건 Up으로 보내는데...
+
+
+
+## (e)
+
+accuracy의 측면에서 (a)~(d)의 모델이 유사하지만, test set의 결과에서는 모든 데이터를 Up이라고 분류하는 (c), (d)의 모델은 '분류'를 한다고 하기도 민망한 모델이다. (a), (b)는 혼동행렬상 유사한 결과를 보인다. 솔직히 둘 다 별로 권장할 모델은 아니지만... (c)와 (d)에 비해 (a)와 (b) 중 하나를 채택하는 것이 현명하고 (a)가 나아 보인다.
+

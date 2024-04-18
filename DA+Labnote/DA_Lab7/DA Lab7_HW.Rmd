@@ -1,0 +1,172 @@
+---
+title: "DA Lab7_HW"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(cowplot)
+library(latex2exp)
+library(brms)
+library(broom)
+library(MASS)
+library(boot)
+```
+
+
+해당 강의 실습문항을 꽤나 못 풀었으나 일단 제출합니다. 일단 풀어 보고 조만간 메일 등으로 질문드리겠습니다.
+
+
+## Exercises
+
+### Exercise 1
+
+(a) Using the `affair` data set, select three variables which you think are related to the probability of cheating. Perform a proper regression model and explain the result.
+
+```{r}
+affairs_df <- read_csv('affairs.csv') %>%
+  mutate(cheater = ifelse(affairs > 0, TRUE, FALSE))
+
+affairs_glm_bin <- glm(cheater ~ children + education + rating, family = binomial(link = "logit"), data = affairs_df)
+
+summary(affairs_glm_bin)
+```
+
+
+
+(b) Compare the deviance with the model we fitted in class.
+
+Residual deviance와 AIC 모두 감소하였다.
+
+
+
+(c) Consider that there is a new individual with the three variables you chose above. Randomly select each variable and guess his or her probability of cheating.
+
+```{r, eval=FALSE}
+
+predict.glm(affairs_glm_bin, newdata = data_frame(sample(c(TRUE, FALSE), 1, 1), sample(seq(9, 20, 1), 1, 1), sample(seq(1, 5, 1), 1, 1)))
+
+```
+
+
+
+
+### Exercise 2
+
+(a) Using the `low birth weight infants` data set, select three variables which you think are related to the number of visits to the doctor. Perform a proper regression model and explain the result. 
+
+```{r}
+lbw_df <- read_csv('lbw.csv')
+lbw_df
+
+lbw_glm <- glm(ftv ~ age + smoke + lwt, family = poisson(link = 'log'), data = lbw_df)
+
+summary(lbw_glm)
+```
+
+
+
+(b) Compare the deviance with the model we fitted in class.
+
+252.96이었던 residual deviance가 250.25로 감소하였으나, AIC는 468.33으로 증가하였다.
+
+
+
+(c) Consider that there is a new individual with the three variables you chose above. Randomly select each variable and guess her number of visits to the doctor.
+
+
+
+### Exercise 3
+Perform a forward selection estimating the probability of cheating with your own criterion. State the best model and explain the result.
+
+
+### Exercise 4
+Build your model that estimates the number of visits to the doctor. State the model and explain the result.
+
+
+
+### Exercise 5
+
+(a) Using the `affair` data set, fit the following five models and compare the result.
+- Intercept model
+- Model using 'age', 'gender', 'education', 'yearmarried', 'occupation' variables only
+- Model using 'age', 'gender', 'education', 'yearmarried', 'occupation' variables and their two way interactions
+- Model using 'age', 'gender', 'education', 'yearmarried', 'occupation' variables and their two and three way interactions.
+- Full model using 'age', 'gender', 'education', 'yearmarried', 'occupation' variables and their all interactions.
+
+
+```{r}
+affairs_glm_bin1 <- glm(cheater ~ 1, family = binomial(link = "logit"), data = affairs_df)
+summary(affairs_glm_bin1)
+
+affairs_glm_bin2 <- glm(cheater ~ (age + gender + education + yearsmarried + occupation)^2, family = binomial(link = "logit"), data = affairs_df)
+summary(affairs_glm_bin2)
+
+affairs_glm_bin3 <- glm(cheater ~ (age + gender + education + yearsmarried + occupation)^3, family = binomial(link = "logit"), data = affairs_df)
+summary(affairs_glm_bin3)
+
+affairs_glm_bin4 <- glm(cheater ~ age*gender*education*yearsmarried*occupation, family = binomial(link = "logit"), data = affairs_df)
+summary(affairs_glm_bin4)
+```
+
+
+
+(b) Using the LOOCV, explain which model shows the best performance.
+
+```{r}
+cver_bin1 <- cv.glm(affairs_df, affairs_glm_bin1)
+cver_bin1$delta
+
+cver_bin2 <- cv.glm(affairs_df, affairs_glm_bin2)
+cver_bin2$delta
+
+cver_bin3 <- cv.glm(affairs_df, affairs_glm_bin3)
+cver_bin3$delta
+
+cver_bin4 <- cv.glm(affairs_df, affairs_glm_bin4)
+cver_bin4$delta
+```
+
+시행 매우 느려... 결과가 뭔가 이상하다.
+
+
+
+### Exercise 6
+
+(a) Using the `low birth weight infants` data set, fit the following five models and compare the result.
+- Intercept model
+- Model using 'age' and 'lwt' variables only
+- Model using 'age' and 'lwt' variables and their quadratic terms
+- Model using 'age' and 'lwt' variables and their quadratic/cubic terms
+- Model using 'age' and 'lwt' variables and their interaction.
+
+```{r}
+lbw_m1 <- glm(ftv ~ 1, family = poisson(link = 'log'), data = lbw_df)
+summary(lbw_m1)
+
+lbw_m2 <- glm(ftv ~ poly(age, lwt, degree = 2), family = poisson(link = 'log'), data = lbw_df)
+summary(lbw_m2)
+
+lbw_m3 <- glm(ftv ~ poly(age, lwt, degree = 3), family = poisson(link = 'log'), data = lbw_df)
+summary(lbw_m3)
+
+lbw_m4 <- glm(ftv ~ age*lwt, family = poisson(link = 'log'), data = lbw_df)
+summary(lbw_m4)
+```
+
+
+
+(b) Using the K-fold cross-validation, explain which model shows the best performance.
+
+```{r}
+
+```
+

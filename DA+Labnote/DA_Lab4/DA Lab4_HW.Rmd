@@ -1,0 +1,258 @@
+---
+title: "DA Lab4_HW"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+library('Lahman')
+library('mosaicData')
+library('mdsr')
+library('babynames')
+```
+
+
+# Exercise 1
+
+```{r}
+manny <- Batting %>% filter(playerID == "ramirma02")
+head(manny)
+
+manny %>% summarize(
+  span = paste(min(yearID), max(yearID), sep = "-"),
+  numYears = n_distinct(yearID), numTeams = n_distinct(teamID),
+  BA = sum(H)/sum(AB), tH = sum(H), tHR = sum(HR), tRBI = sum(RBI)
+  )
+```
+
+
+## 1-1
+
+
+```{r}
+manny_q1 <- manny %>%
+  group_by(teamID) %>%
+  summarise(span = paste(min(yearID), max(yearID), sep = "-"), totalHit = sum(H), totalHR = sum(HR), BA = totalHit/sum(AB))
+manny_q1
+```
+
+어떤 기록을 표시해야 하는가? 문제에서 정확히 정의되어 있지 않지만... 우선 각 팀별 안타(`totalHit`), 각 팀별 홈런(`totalHR`), 각 팀별 타율(`BA`), 각 팀별 기간을 복원하는 것이 적절해 보인다. 이에 각 팀별 기록을 적절히 복원하였다. 그런데... teamID의 알파벳 순으로 정렬되었고, 이는 일반적으로 선수의 기록에 기대하는 시간 순 정렬과 부합하지 않는다. 따라서 시간 순으로 정렬되도록 `arrange()`함수를 추가로 사용하였다. 다행히도 이 함수는 시간에 대해 별도의 처리를 하지 않아도 잘 동작한다.
+
+
+```{r}
+arrange(manny_q1, span)
+```
+
+
+
+## 1-2
+
+
+```{r}
+table_q2 <- full_join(Batting, People, by = "playerID") %>%
+  mutate(fullName = paste(nameGiven, nameLast))
+
+table_q2 %>%
+  group_by(fullName) %>%
+  summarise(totalHR = sum(HR)) %>% 
+  arrange(desc(totalHR)) %>%
+  slice_head(n = 20)
+
+table_q2a <- Batting %>%
+  group_by(playerID) %>%
+  summarise(totalHR = sum(HR)) %>%
+  left_join(People, by = "playerID") %>%
+  mutate(fullName = paste(nameGiven, nameLast)) %>%
+  select(fullName, totalHR) %>%
+  arrange(desc(totalHR)) %>%
+  slice_head(n = 20)
+
+table_q2a
+```
+
+우선, fullname을 정의하기 위해 `nameGiven` + `nameLast`를 `paste()`함수를 통해 합쳐 하나의 문자열로 만들고 `mutate()`를 통해 새 변수로 생성했다. 
+
+한편, key는 playerID여야 한다. full name을 key로 쓰는 경우, George Kenneth Griffey가 홈런 1위가 되는 광경을 목격할 수 있다. 부자가 같은 이름을 쓰면서 'senior'와 'junior'로 구분되었다고 하는데, 앞서의 과정을 통해 정의된 `fullName`에서는 구분이 되지 않는다.
+
+이에, `playerID`를 key로 사용하여 `group_by()`함수로 묶어 총 홈런 개수 `totalHR`를 구하였다. 이 경우 `group_by()` 함수를 사용할 때 key에 `playerID`를 대응시킨 경우 미리 원 데이터에 만들어 둔 `fullName`을 가져오기 난해한 측면이 있어 우선 `Batting` Dataset에서 `totalHR`을 구한 뒤 `left_join()`함수를 사용해 playerID 대신 fullName을 대응시키는 과정을 수행하였다. join을 먼저 하는 방법은 없는지 현재 조사 중이다.
+
+
+```{r}
+pluck(table_q2a['fullName'], 1)[1]
+pluck(table_q2a['fullName'], 1)[15]
+```
+
+Manuel Aristides Ramirez가 15번째 줄에 존재하며, Barry Lamar Bonds가 1번째 줄에 존재한다.
+
+
+
+## 1-3
+
+
+```{r}
+table_q3 <- Pitching %>% 
+  group_by(playerID) %>%
+  summarise(totalW = sum(W), totalSO = sum(SO)) %>%
+  left_join(People, by = 'playerID') %>%
+  mutate(fullName = paste(nameGiven, nameLast)) %>%
+  filter(totalW >= 300&totalSO >= 3000) %>%
+  select(fullName, totalW, totalSO)
+table_q3
+```
+
+
+
+## 1-4
+
+
+```{r}
+df <- AwardsPlayers %>% filter(awardID == "World Series MVP")
+table_q4 <- left_join(df, People, by = "playerID") %>%
+  select(playerID, awardID, yearID, nameFirst:nameGiven, birthYear:birthDay) %>%
+  arrange(desc(yearID)) %>%
+  slice_head(n = 10) %>%
+  mutate(age_at_award = ifelse(birthMonth <= 10, yearID - birthYear , yearID - birthYear + 1))
+```
+
+`df`는 월드시리즈 MVP들의 리스트이고, key로 playerID를 공유하므로 `left_join()`함수를 통해 `People` dataset과 합치면 적절하다. 그러나, People dataset은 나이를 직접 밝히지 않으므로 '수상 당시의 나이'는 직접 계산하여 넣어야 한다. 이 과정에서 `mutate()` 함수가 사용되었다.
+
+사실 나이를 엄밀하게 계산하려면 '월드시리즈 MVP'가 확정된 날짜가 각 시즌마다 유동적이므로 월드시리즈 MVP가 확정된 날짜를 각 시즌별로 조사하고, 각 시즌별로 해당 선수의 `birthDate`와 해당 날짜까지 비교해야 정확하지만... 찾아보니 그런 사람은 없었다! 그러나, 2013년의 월드 시리즈 MVP `ortizda01`의 경우 월드 시리즈 MVP를 확정지은 이후 생일을 맞았고, 나머지 9인의 플레이어는 그 해 생일을 맞은 후 월드 시리즈 MVP를 확정지었다. 위의 나이는 이와 같은 요소를 고려하여 진행한 분석이다.
+
+
+
+# Exercise 2
+
+
+## 2-1
+
+### (a)
+
+```{r}
+table_q2 <- HELPfull %>%
+  select(ID, TIME, DRUGRISK, SEXRISK)
+```
+
+
+### (b)
+
+```{r}
+table_q2b <- table_q2 %>% 
+  filter(ID == 3)
+unique(table_q2b$TIME)
+```
+
+0, 6, 24시에 측정되었다.
+
+
+### (c)
+
+```{r}
+table_q2ca <- table_q2 %>%
+  filter(TIME == 0|TIME == 6, ID >= 1 & ID <= 3) %>%
+  select(-SEXRISK) %>%
+  pivot_wider(names_from = TIME, values_from = DRUGRISK)
+
+colnames(table_q2ca) <- c('ID', 'DRUGRISK_0', 'DRUGRISK_6')
+
+table_q2cb <- table_q2 %>%
+  filter(TIME == 0|TIME == 6, ID >= 1 & ID <= 3) %>%
+  select(-DRUGRISK) %>%
+  pivot_wider(names_from = TIME, values_from = SEXRISK)
+
+colnames(table_q2cb) <- c('ID', 'SEXRISK_0', 'SEXRISK_6')
+
+table_q2c <- full_join(table_q2ca, table_q2cb, join_by('ID'))
+table_q2c
+```
+
+이렇게 ID가 key로 잘 작동하는 방법을 이용해서 쪼갰다 붙이는 거 말고 한 번에 처리하는 방법이 있을 것 같은데...
+
+
+### (d)
+
+```{r}
+table_q2d <- table_q2 %>%
+  filter(TIME == 0|TIME == 6) %>%
+  pivot_wider(names_from = TIME, values_from = c(DRUGRISK, SEXRISK))
+
+cor(table_q2d, use = "complete.obs")
+```
+
+그냥 c()로 묶어 주면 되는군요! DRUGRISK에 대해서는 0.5991이고, SEXRISK에 대해서는 0.5048이다.
+
+
+
+# Exercise 3
+
+
+## 3-1
+
+```{r}
+Macbeth <- Macbeth_raw %>%
+  str_split("\r\n") %>%
+  pluck(1)#리스트의 첫 항만 가져오는 함수 
+```
+
+
+### (a)
+
+```{r}
+Macbeth %>%
+  str_subset("[A-z]+-[A-z]+") %>%
+  str_extract("[A-z]+-[A-z]+")
+```
+
+
+### (b)
+
+```{r}
+Macbeth %>%
+  str_subset("[A-z]+(more|less) ") %>%
+  str_extract("[A-z]+(more|less)")
+```
+
+'Bless'는 형용사가 아닌데, 확인해 보면 'God Bless Us'에서 튀어나온 말이다. 이런 words를 처리하려면 안타깝지만 정규 표현식만으로는 답이 없다. 일일이 예외 처리를 해 주든지 자연어 처리를 도입하든지 해야 한다. 둘 다 정규 표현식 문제에서 할 일은 아닌 것 같다...
+
+
+### (c)
+
+```{r}
+Macbeth %>%
+  str_subset("(Exit|Exeunt)")
+```
+
+
+
+## 3-2
+
+
+### (a)
+
+```{r}
+babynames %>%
+  filter(sex == 'M', str_detect(babynames$name, "(a|e|i|o|u)$") == TRUE) %>%
+  group_by(name, sex) %>%
+  summarise(count = sum(n)) %>%
+  ungroup() %>% 
+  slice_max(count, n = 10)
+```
+
+
+### (b)
+
+```{r}
+babynames %>%
+  filter(str_detect(babynames$name, "(joe|jo|Joe|Jo)$") == TRUE) %>%
+  group_by(name) %>%
+  summarise(count = sum(n)) %>%
+  ungroup() %>% 
+  slice_max(count, n = 10)
+```

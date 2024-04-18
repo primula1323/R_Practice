@@ -1,0 +1,122 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+  \setmainfont[]{NanumGothic}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Data Analysis and Lab\_Lab 2},
+  pdfauthor={Na SeungChan},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Data Analysis and Lab\_Lab 2}
+\author{Na SeungChan}
+\date{}
+
+\begin{document}
+\maketitle
+
+\hypertarget{r-markdown}{%
+\section{R Markdown}\label{r-markdown}}
+
+why? 1. reproducible - `누가 돌려도 똑같은 결과 얻을 수 있음.' 2. result
+without code가 필요한 경우, result with code, result with code, idea,
+\ldots{} 수많은 상황 대응. 3. 프레젠테이션, latex 등과도 잘 대응.
+
+how? you should install the \texttt{rmarkdown} and \texttt{knitr}
+packages. you should turn in your homework by R markdown and knit it as
+pdf or html.
+
+\hypertarget{basics}{%
+\subsection{Basics}\label{basics}}
+
+\_underbar(1)\_ makes italic
+
+\_\_underbar(2)\_\_ makes bold
+
+`code` makes code
+
+\^{}superscript\^{} makes superscript
+
+\textasciitilde subscript\textasciitilde{} makes subscript
+
+\href{link}{phrase}
+
+\begin{figure}
+\centering
+\includegraphics{path/to/img.png}
+\caption{optional text}
+\end{figure}
+
+\hypertarget{code-chunks}{%
+\subsection{Code Chunks}\label{code-chunks}}
+
+echo = FALSE option makes display only the output of the code.
+
+eval = FALSE option makes display R code without evaluating it.
+
+\hypertarget{data-analysis-example-cherry-blossom-race-example}{%
+\section{Data Analysis Example : Cherry Blossom Race
+Example}\label{data-analysis-example-cherry-blossom-race-example}}
+
+We encapsulate 이유 : 하나의 함수로 만드는 것이 분석가에게 더 편해 보임.
+
+\end{document}

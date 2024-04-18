@@ -1,0 +1,249 @@
+---
+title: "DA Lab8_HW"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ISLR2)
+library(leaps)
+library(glmnet)
+set.seed(42)
+```
+
+
+
+# Exercises
+
+In this exercise, we will generate simulated data, and will then use this data to perform the best subset selection.
+
+
+---
+
+## (a) 
+
+Use the `rnorm` function to generate a predictor $X$ of length $n = 100$ with mean and variance of what you want. Also, generate a noise vector $\epsilon$ of length $n = 100$ from standard normal distribution (mean 0 and variance 1).
+
+
+```{r}
+vec_x <- rnorm(n = 100, mean = 10, sd = 5)
+vec_error <- rnorm(n = 100, mean = 0, sd = 1)
+```
+
+
+
+---
+
+## (b) 
+
+Generate a response vector $Y$ of length $n = 100$ according to the model
+$$
+Y = \beta_0 + \beta_1X + \beta_2X^2 + \beta_3X^3 + \epsilon,
+$$
+where $\beta_0$, $\beta_1$, $\beta_2$, and $\beta_3$ are constants of your choice.
+
+
+```{r}
+betas <- round(10*rbeta(n = 4, 5, 10), 2) - 5
+betas
+y <- betas[1] + betas[2]*vec_x + betas[3]*(vec_x)^2 + betas[4]*(vec_x)^3 + vec_error
+df <- data.frame(vec_x, y)
+```
+
+
+
+---
+
+##(c) 
+
+Use the `regsubsets()` function to perform the best subset selection in order to choose the best model containing the predictors $X, X^2, \dots, X^{10}$. What is the best model obtained according to $C_p$, BIC, and adjusted $R^2$? Show some plots to provide evidence for your answer, and report the coefficients of the best model obtained. Note you will need to use the `data.frame()` function to create a single data set containing both $X$ and $Y$.
+
+
+```{r}
+full_model <- regsubsets(y ~ poly(vec_x, degree = 10), data = df, nvmax = 11)
+summary(full_model)
+summary_fm <- summary(full_model)
+summary_fm$cp
+plot(summary_fm$cp)
+summary_fm$bic
+plot(summary_fm$bic)
+summary_fm$adjr2
+plot(summary_fm$adjr2)
+```
+
+C_p, BIC 기준으로는 p = 1이고 Adjusted R^2 기준으로는 p = 2이다.
+
+
+```{r}
+coef(full_model, 1)
+coef(full_model, 2)
+```
+
+(??) BIC랑 $C_p$ 그래프 모양이 좀 이상한데(수업의 전형적 결과랑 다름)... 코딩을 잘못해서 이리 된 건가? 아니면 모의실험으로 생성된 데이터 특성상 이런 결과물이 나올 수도 있는 건가?
+
+
+
+---
+
+## (d)
+
+Repeat (c), using forward stepwise selection and also using backward stepwise selection. How does your answer compare to the results in (c)?
+
+
+```{r}
+forward_model <- regsubsets(y ~ poly(vec_x, degree = 10), data = df, nvmax = 11, method = "forward")
+summary(forward_model)
+summary_fom <- summary(forward_model)
+summary_fom$cp
+plot(summary_fom$cp)
+summary_fom$bic
+plot(summary_fom$bic)
+summary_fom$adjr2
+plot(summary_fom$adjr2)
+coef(forward_model, 1)
+coef(forward_model, 2)
+```
+
+사실 최적화 결과 model의 변수 수가 1~2개인데 forward랑 full model 차이가 크기가 어렵다.
+
+
+```{r}
+backward_model <- regsubsets(y ~ poly(vec_x, degree = 10), data = df, nvmax = 11, method = "backward")
+summary(backward_model)
+summary_ba <- summary(backward_model)
+summary_ba$cp
+plot(summary_ba$cp)
+summary_ba$bic
+plot(summary_ba$bic)
+summary_ba$adjr2
+plot(summary_ba$adjr2)
+coef(backward_model, 1)
+coef(backward_model, 2)
+```
+
+
+같게 나왔다. 최종 모델이 많이 단순하면 이런 결과가 나올 수 있는 건가...?
+
+
+
+---
+
+## (e)
+
+Now fit a lasso model to the simulated data, again using $X, X^2, \dots, X^{10}$ as predictors. Use cross-validation to select the optimal value of $\lambda$. Create plots of the cross-validation to select the optimal value of $\lambda$. Create plots of the cross-validation error as a function of $\lambda$. Report the resulting coefficient estimates, and discuss the results obtained.
+
+
+```{r}
+x_glm <- model.matrix(y ~ poly(vec_x, degree = 10), data = df)[, -1]
+y_glm <- y
+df_tr <- sample(c(TRUE, FALSE), nrow(df), replace = TRUE)
+df_te <- (!df_tr)
+
+md_qe_out <- cv.glmnet(x_glm[df_tr,], y_glm[df_tr], alpha = 1)
+plot(md_qe_out)
+bestl <- md_qe_out$lambda.min
+la_pr <- predict(md_qe_out, s = bestl, newx = x_glm[df_te,])
+mean((la_pr - y_glm[df_te])^2)#test MSE
+
+coef(md_qe_out, bestl)
+```
+
+
+그냥 다항회귀 모델 자체가 이상하니까 쓰지 말라는 결과를 도출한다(변수 선택 결과 페널티에 의해 계수가 싸그리 0이 된다.). 실제 앞 모델을 다시 살펴보면 애초에 설명력이 낮은 변수였던 것 같다.
+
+
+
+---
+
+## (f) 
+
+Now generate a response vector $Y$ according to the model
+$$
+Y = \beta_0 + \beta_7X^7 + \epsilon
+$$
+and perform the best subset selection and the lasso. Discuss the results obtained.
+
+
+```{r}
+y_7 <- betas[1] + rpois(1, lambda = 5)*(vec_x)^7 + vec_error
+```
+
+
+그런데 무슨 모델에 대해서 best subset selection and lasso를 하라는 것인지 명시되지 않았다. 일단 계숙 했던 10차 다항회귀 모델에 대해 수행하였다.
+
+
+```{r}
+df_7 <- data.frame(vec_x, y_7) %>%
+  rename("x_7" = "vec_x")
+
+
+full_model_7 <- regsubsets(y_7 ~ poly(x_7, degree = 10), data = df_7, nvmax = 10)
+summary(full_model_7)
+summary_fm7 <- summary(full_model_7)
+plot(summary_fm7$cp)
+which.min(summary_fm7$cp)
+plot(summary_fm7$bic)
+which.min(summary_fm7$bic)
+plot(summary_fm7$adjr2)
+which.max(summary_fm7$adjr2)
+
+coef(full_model, 7)
+coef(full_model, 8)
+```
+
+$C_p$와 BIC를 기준으로는 변수 8개, ADJUSTED R^2를 기준으로는 변수 7개가 최적 모델이다.
+
+
+```{r}
+x_glm_7 <- model.matrix(y_7 ~ poly(x_7, degree = 10), data = df_7)[, -1]
+y_glm_7 <- y_7
+df_tr7 <- sample(c(TRUE, FALSE), nrow(df_7), replace = TRUE)
+df_te7 <- (!df_tr7)
+
+q7_out <- cv.glmnet(x_glm_7[df_tr7,], y_glm_7[df_tr7], alpha = 1)
+plot(q7_out)
+bestl7 <- q7_out$lambda.min
+la_pr7 <- predict(q7_out, s = bestl7, newx = x_glm_7[df_te7,])
+mean((la_pr7 - y_glm_7[df_te7])^2)#test MSE
+
+coef(q7_out, bestl7)
+```
+
+1, 2, 3, 6, 7, 8, 10번째 항을 사용한다. 이는 best subset selection과 꽤나 다른 결과이다.
+
+
+```{r, eval=FALSE, include=FALSE}
+#공부하다 생긴 코딩 쓰레기
+
+
+
+val.errors <- rep(NA, 10)
+bestfit <- regsubsets(y ~ poly(x, degree = 10), data = df[df_tr, ], nvmax = 11)
+test.mat <- model.matrix(y ~ poly(x, degree = 10), data = df[df_te, ])
+for (i in 1:10) {
+  coefi <- coef(bestfit, id = i)
+  predicti <- test.mat[, names(coefi)] %*% coefi
+  val.errors[i] <- mean((df$y[df_te]-predicti)^2)
+}
+which.min(val.errors)
+coef(bestfit, 2)
+
+
+k <- 10
+n <- 100
+folds <- sample(rep(1:k, length = n))
+cv.errors <- matrix(NA, k, 10, dimnames = list(NULL, paste(1:10)))
+
+
+lasso.mod <- glmnet(, df[df_tr,]$y, alpha = 1, lambda = 0)
+summary(lasso.mod)
+?glmnet
+```

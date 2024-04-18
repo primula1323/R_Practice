@@ -1,0 +1,388 @@
+---
+title: "Data Analysis and Lab."  
+subtitle: 'Lab 6'
+author: "Suhwan Bong"
+date: "2023-10-17"
+output:
+  html_document: default
+  pdf_document:
+    latex_engine: xelatex
+mainfont: NanumGothic
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+library(tidyverse)
+```
+
+
+---
+
+
+
+## 1. Feature engineering
+
+In this section, we will study methods to handle variables. Transforming variables to use in modeling is called `feature engineering`.
+
+```{r}
+data = read.csv('akc.csv')
+```
+
+- Qualitative variable(양적 변수)
+```{r}
+hist(data$min_height)
+```
+
+- Nominal variables(명목형 변수)
+```{r}
+table(data$group)
+```
+
+- Ordinal variables(순서형 변수)
+```{r}
+table(data$grooming_frequency_category)
+```
+
+
+### Handling qualitative variables
+
+Usually it is easy to use numeric data as it is. However, sometimes we have to handle it.
+```{r}
+ht = na.omit(data$min_height)
+hist(ht)
+```
+
+First, we may use transformation such as log-transformation.
+```{r}
+hist(log(ht))
+```
+
+Second, we can make numerical variable into categorical variable.
+```{r}
+cut_ht = cut(ht, breaks = c(0,30,45,60,80))
+table(cut_ht)
+```
+
+### Handling nominal variables
+We have to make string variables into factor variables.
+```{r}
+typeof(data$group)
+data$group[1]
+typeof(factor(data$group))
+factor(data$group)[1]
+```
+
+To deal with nominal variables, we usually use `one-hot encoding`.
+```{r}
+one_hot = model.matrix(~0 + data$group)
+head(one_hot)
+#print(one_hot)
+#head(model.matrix(~1 + data$group))
+#print(model.matrix(~1+data$group))
+```
+
+`model.matrix(object, data = environment(object), contrasts.arg = NULL, xlev = NULL, ...)` 함수는 data로부터 matrix를 만들어냄. ~0 부분은 intercept가 0임을 나타냄. 
+
+
+
+### Handling ordinal variables
+Similarly, we have to make to factor variable.
+```{r}
+typeof(data$grooming_frequency_category)
+typeof(factor(data$grooming_frequency_category, 
+              levels = c("Occasional Bath/Brush", "Weekly Brushing", 
+                         "2-3 Times a Week Brushing", "Daily Brushing")))
+```
+
+Or we may match some numeric values to ordinal variables.
+
+
+### Handling missing values
+There is NA value in shedding column.
+```{r}
+shedding = data$shedding_value
+is.na(c(1,2,3,NA))
+sum(is.na(shedding))
+length(shedding)
+```
+
+First, we may remove values with NA.(mutate(A = na.omit(A)))
+```{r}
+shedding1 = na.omit(shedding)
+sum(is.na(shedding1))
+length(shedding1)
+```
+
+Second, we may replace NA with mean value.
+```{r}
+shedding2 = shedding
+shedding2[is.na(shedding)] = mean(shedding, na.rm=TRUE)
+sum(is.na(shedding2))
+length(shedding2)
+```
+
+## 2. Simple Linear Regression
+A simple linear regression model for an outcome $y$ as a function of a predictor $x$ takes the form of
+$$
+ y_i = \beta_0 + \beta_1 x_i + \varepsilon_i, \text{ for } i = 1,2,\dots, n.
+$$
+
+We will fit `min_weight` on `min_height`.
+
+```{r}
+data = data[complete.cases(data),]
+data %>% 
+  ggplot(aes(x = min_height, y = min_weight)) +
+  geom_point()
+```
+
+It seems to have a positive correlation. Then, a simple linear model can summarize the scatterplot? How can we find the best fitted line?
+
+```{r}
+data %>% 
+  ggplot(aes(x = min_height, y = min_weight)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F)
+```
+
+```{r}
+data %>% 
+  ggplot(aes(x = min_height, y = min_weight)) +
+  geom_point() +
+  geom_hline(yintercept = mean(data$min_weight), col = "red")
+```
+
+The `lm()` function finds the best coefficients $\hat\beta_0$ and $\hat\beta_1$ where the fitted values are given by $\hat y_i = \hat\beta_0 + \hat\beta_1 x_i$. What is left over is captured by the residuals $\hat\varepsilon_i = y_i - \hat y_i$. The model almost never fits perfectly.
+
+```{r}
+mod <- lm(min_weight ~ min_height, data)
+summary(mod)
+```
+
+Also, it can be used with `predict()`.
+```{r}
+# using the same data
+data.frame(data$min_height, data$min_weight, mod$fitted.values)[1:3,]
+predict(mod)[1:3]
+
+# using the new data
+newdata <- data.frame(min_height = 5 * (4:8))
+newdata$prediction <- predict(mod, newdata)
+newdata
+```
+
+```{r}
+data2 <- data %>%
+  mutate(
+    lower.pi = predict(mod, interval = "prediction")[,2],
+    upper.pi = predict(mod, interval = "prediction")[,3])
+
+ggplot(data2, aes(x = min_height, y = min_weight)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) + # 95% Conf.Int.
+  geom_line(aes(y=lower.pi), color = "red", linetype ="dashed") +
+  geom_line(aes(y=upper.pi), color = "red", linetype ="dashed")
+```
+
+## 3. Loss Functions
+We need some metric of how good or bad our predictions are. A loss function characterizes the cost, error, or fit resulting from a particular choice of model or model parameters. The loss function looks like $L(y, \hat y)$. Two popular choices are $L1$ loss and $L2$ loss.
+
+1. $L2$ loss : $L(y, \hat y) = (y - \hat y)^2$
+2. $L1$ loss : $L(y, \hat y) = \vert y - \hat y \vert$
+
+As we discussed in lecture class, we use Gongcha Sales example. Question: How many drinks do you expect to sell tomorrow?
+
+```{r}
+gongcha <- c(200, 210, 220, 290, 330)
+
+# sample mean
+mean(gongcha)
+
+# sample median
+median(gongcha)
+```
+
+Consider an SLR model, $\hat y = \beta_0 + \beta_1 x$. To measure the total loss across all data points, a natural measure is of the average loss across all points.
+$$
+\hat R(\theta) = \hat R(\beta_0, \beta_1) = \frac{1}{n} \sum_i L(y_i, \hat y_i)
+$$
+
+1. For $L2$ loss, $\text{MSE} = \frac{1}{n} \sum_{i = 1}^n (y_i - \hat y_i)^2$
+2. For $L1$ loss, $\text{MAE} = \frac{1}{n} \sum_{i = 1}^n \vert y_i - \hat y_i \vert$
+
+```{r}
+mse <- function(y, est){
+  mean((y-est)**2)
+}
+
+mae <- function(y, est){
+  mean(abs(y-est))
+}
+
+est.seq <- 150:350
+mse.seq <- sapply(est.seq, mse, y = gongcha)
+mae.seq <- sapply(est.seq, mae, y = gongcha)
+
+data.frame(beta0 = est.seq, MSE = mse.seq, MAE = mae.seq) %>% 
+  ggplot(aes(x = beta0, y = MSE)) +
+  geom_line()
+
+data.frame(beta0 = est.seq, MSE = mse.seq, MAE = mae.seq) %>% 
+  ggplot(aes(x = beta0, y = MAE)) +
+  geom_line()
+```
+
+Since MSE is smoother than MAE, it is easy to minimize.
+
+## 4. Multiple Linear Regression & Model selection
+Multiple regression is a natural extension of simple linear regression that incorporates multiple explanatory (or predictor) variables. It has the general form:
+$$
+y = \beta_0 +\beta_1 x_1 +\dots +\beta_p x_p + \varepsilon
+$$
+
+For example,
+```{r}
+data1 = data[,c("popularity","min_height","min_weight",
+                "grooming_frequency_value","energy_level_value","trainability_value")]
+
+head(data1)
+```
+Suppose that we want to estimate the `popularity` using `min_height`, `min_weight`, `grooming_frequency_value`, `energy_level_value`, and `trainability_value`. We will perform linear regression using all variables.
+```{r}
+library(broom)
+model = lm(popularity~., data = data1)
+tidy(model)
+confint(model)
+```
+
+
+
+Among various variable selections in multiple regression, we will use AIC to choose the best model. We have to select proper variables.
+```{r}
+library(olsrr)
+k = ols_step_all_possible(model)
+plot(k)
+head(k)
+```
+
+However, computing all possible cases requires heavy computation.
+
+### Forward selection
+```{r}
+forw = ols_step_forward_aic(model)
+plot(forw)
+forw
+```
+
+
+
+### Backward selection
+```{r}
+back = ols_step_backward_aic(model)
+plot(back)
+back
+```
+
+### Regression diagnostics
+Basic assumptions of multiple linear regression
+- Linearity
+- Homoscedasticity
+- Normality
+- Independence
+
+#### Linearity
+We can use residual plot or perform lack of fit test.
+```{r}
+plot(model, which=1)
+```
+
+Lack of fit test
+```{r}
+summary(model)
+```
+
+
+#### Homoscedasticity
+We can use residual plot. If the variance seems different, we have to use transformation.
+
+```{r}
+par(mfrow=c(1,2))
+plot(model, which=c(1,3))
+```
+
+#### Normality
+We can use Q-Q plot. If the normality does not assumed, we have to use transformation.
+
+```{r}
+plot(model, which=2)
+```
+
+#### Independence
+We can perform Durbin-Watson test to check independence.
+
+```{r}
+library(lmtest)
+dwtest(popularity ~ min_height + min_weight + grooming_frequency_value + energy_level_value + trainability_value, data=data, alternative="two.sided")
+```
+
+## 5. Other Considerations in Regression
+Consider estimation of popularity using `min_weight`, `group`, and `energetic_yn`.
+
+```{r}
+data$energetic_yn <- data$energy_level_category == "Energetic"
+table(data$energetic_yn)
+data1 = data[,c("popularity","min_weight", "energetic_yn")]
+head(data1)
+```
+
+Since `energetic_yn` is a categorical variable, we need other approach.
+
+### Parallel Slope
+```{r}
+model1 <- lm(popularity ~ min_weight + energetic_yn, data = data1)
+summary(model1)
+```
+
+### Interaction Terms
+```{r}
+model2 <- lm(popularity ~ min_weight * energetic_yn, data = data1)
+summary(model2)
+```
+
+### Non-linear Relationships
+```{r}
+ggplot(data, aes(x = min_expectancy, y = popularity)) + 
+  geom_point() +
+  geom_smooth(method = lm, se = F)  
+```
+
+Consider the second order and third order terms of `min_expectancy`.
+```{r}
+nonlin <- lm(popularity ~ min_expectancy + I(min_expectancy^2) + I(min_expectancy^3), data = data)
+summary(nonlin)
+```
+
+There are a lot more smoothing techniques to study non-linear relationships.
+
+## 6. Exercises
+
+In the `HELP` (Health Evaluation and Linkage to Primary Care) study, investigators were interested in determining predictors of severe depressive symptoms (measured by the Center for Epidemiologic Studies—Depression scale, `cesd`) amongst a cohort enrolled at a substance abuse treatment facility.
+
+```{r, eval = FALSE}
+library(mdsr)
+HELPrct
+```
+
+1. Select 10 variables to predict `cesd` and explain why you choose those variables.
+
+2. Handle various values and NAs before we start analysis.
+
+3. Perform multiple linear regression and explain the result.
+
+4. Perform stepwise selection methods to find the best model and justify your result.
+
+5. Use the model in 4, perform regression diagnostic procedures (linearity, homoscedasticity, normality, independence). Explain the result for each assumption. If the assumption does not hold, give an alternative method to satisfy the result.
+
+6. Select only 2 variables that were the most significant in 3. Compare two models, (1) multiple linear regression not considering the interaction term and (2) multiple linear regression considering the interaction term. Discuss the result.
+
+7. Select only 1 variable that were the most significant in 3. To fit the multiple regression $y = \beta_0 + \beta_1 x+ \varepsilon$ using the $L1$ loss function, choose a proper grid range of $(\beta_0, \beta_1)$ and find the values of $\beta_0, \beta_1$ minimizing the total $L1$ loss.

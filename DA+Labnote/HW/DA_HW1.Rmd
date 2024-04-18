@@ -1,0 +1,212 @@
+---
+title: "DA_HW1"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(Lahman)
+library(tidyverse)
+```
+
+
+
+# Problem 1
+
+```{r}
+df_BA <- Batting %>%
+  filter(AB >= 400, yearID >= 1957) %>%
+  mutate(BA = H/AB)
+```
+
+
+## (a)
+
+```{r}
+df_q1a <- df_BA %>%
+  group_by(yearID) %>%
+  arrange(desc(BA)) %>%
+  slice_head(n = 20)
+
+ggplot(data = df_q1a) +
+  geom_point(mapping = aes(x = yearID, y = BA), size = 0.5) +
+  geom_smooth(mapping = aes(x = yearID, y = BA))
+
+#ggplot(data = df_q1a, mapping = aes(x = yearID, y = BA)) +
+#  geom_point() +
+#  geom_smooth(mapping = aes(yearID ~ BA))
+```
+
+
+
+## (b)
+
+```{r}
+df_q1b <- df_BA %>%
+  group_by(yearID) %>%
+  arrange(desc(BA)) %>%
+  slice_head(n = 5) %>%
+  ungroup() %>%
+  left_join(People) %>%
+  mutate(BA = round(BA, 3), fullName = paste(nameGiven, nameLast)) %>%
+  select(fullName, yearID, BA)
+
+df_q1b
+```
+
+
+
+## (c)
+
+```{r}
+df_q1c <- df_BA %>%
+  filter(playerID == 'gwynnto01') %>%
+  slice_max(order_by = BA, n = 3) %>%
+  select(yearID, BA)
+
+pluck(df_q1c[2], 1)
+```
+
+
+
+## (d)
+
+```{r}
+df_q1d <- df_BA %>%
+  group_by(yearID, lgID) %>%
+  slice_max(order_by = BA, n = 1) %>%
+  ungroup() %>%
+  filter(playerID == 'gwynnto01')
+
+pluck(df_q1d[2], 1)
+```
+
+
+
+## (e)
+
+```{r}
+df_q1e <- df_BA %>% 
+  filter(yearID >= 2001) %>%
+  group_by(lgID) %>%
+  arrange(desc(BA)) %>%
+  slice_head(n = 1) %>%
+  ungroup() %>%
+  left_join(People) %>%
+  mutate(fullName = paste(nameGiven, nameLast)) %>%
+  select(fullName, lgID, yearID, BA)
+
+df_q1e
+```
+
+
+
+## (f)
+
+```{r}
+df_q1f <- df_BA %>%
+  filter(yearID == 2021, lgID == 'NL', BA >= 0.3) %>%
+  arrange(desc(BA)) %>%
+  left_join(People) %>%
+  mutate(fullName = paste(nameGiven, nameLast)) %>%
+  select(fullName, lgID, yearID, BA)
+
+pluck(df_q1f[1], 1)[1]
+```
+
+
+
+## (g)
+
+```{r}
+df_q1g <- Batting %>%
+  filter(playerID == 'turnetr01', yearID == 2021) %>%
+  group_by(playerID) %>%
+  summarise(tH = sum(H), tBA = sum(AB)) %>%
+  ungroup() %>%
+  mutate(tAB = tH/tBA)
+
+df_q1g
+```
+
+
+
+# Problem 2
+
+
+## (a)
+
+
+```{r}
+df_q2a <- Batting %>%
+  group_by(yearID) %>%
+  summarise(sum = sum(HR))
+df_q2a
+
+ggplot(data = df_q2a %>% filter(yearID <= 1918)) +
+  geom_line(mapping = aes(x = yearID, y = sum))
+```
+
+1880년대 초반부터 total HR 크게 증가. 그러나 이후의 명확한 증가 추세가 유지되지는 않았음.
+
+
+
+## (b)
+
+
+```{r}
+df_q2b <- Batting %>%
+  group_by(yearID) %>%
+  summarise(tH = sum(HR), tG = sum(G), AH = tH/tG)
+df_q2b
+
+ggplot(data = df_q2b %>% filter(yearID <= 1918)) +
+  geom_line(mapping = aes(x = yearID, y = AH))
+```
+
+앞서 문제와 같이 1880년대 초반부터 홈런 수가 증가한 경향이 존재한 것은 사실이나, '이후의 명확한 증가 추세가 유지되지는 않음' 부분은 과거와 유사한 수준의 홈런으로 돌아옴. 즉, (a)에서 해당 시기 홈런 개수가 증가한 것은 단순 경기수의 증가 영향에 가까워 보임.
+
+
+
+## (c)
+
+
+```{r}
+df_q2c <- Batting %>%
+  group_by(yearID) %>%
+  summarise(sum = sum(HR))
+df_q2c
+
+ggplot(data = df_q2c, mapping = aes(x = yearID, y = sum)) +
+  geom_point(size = 0.75) +
+  geom_smooth() +
+  geom_vline(xintercept = 1919)
+```
+
+지속적으로 증가하고, 2000년대 부근에 두드러지는 봉이 존재하는 정도이다. 2020년 단축 시즌으로 인해 크게 낮아진 점 역시 보인다.
+
+
+
+## (d)
+
+
+```{r}
+df_q2d <- Batting %>%
+  group_by(yearID) %>%
+  summarise(tH = sum(HR), tG = sum(G), AH = tH/tG)
+df_q2d
+
+ggplot(data = df_q2d) +
+  geom_point(mapping = aes(x = yearID, y = AH), size = 0.75) +
+  geom_smooth(mapping = aes(x = yearID, y = AH)) +
+  geom_vline(xintercept = 1919)
+```
+
+1919년을 기점으로 크게 증가하는 경향 존재. 특히 1950년대 부근, 2000년대 부근, 최근 등 비율이 크게 증가하는 등 전반적으로 비율로 계산하는 경우 불안정한 경향이 존재함.

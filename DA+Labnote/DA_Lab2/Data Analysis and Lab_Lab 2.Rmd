@@ -1,0 +1,79 @@
+---
+title: "Data Analysis and Lab_Lab 2"
+author: "Na SeungChan"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# R Markdown
+
+why? 1. reproducible - '누가 돌려도 똑같은 결과 얻을 수 있음.'
+2. result without code가 필요한 경우, result with code, result with code, idea, ... 수많은 상황 대응.
+3. 프레젠테이션, latex 등과도 잘 대응.
+
+how? you should install the `rmarkdown` and `knitr` packages. you should turn in your homework by R markdown and knit it as pdf or html.
+
+
+## Basics
+
+
+\_underbar(1)\_ makes italic
+
+\_\_underbar(2)\_\_ makes bold
+
+\`code\` makes code
+
+\^superscript\^ makes superscript
+
+\~subscript\~ makes subscript
+
+<basic link>
+
+[phrase](link)
+
+![optional text](path/to/img.png)
+
+
+
+## Code Chunks
+
+
+echo = FALSE option makes display only the output of the code.
+
+eval = FALSE option makes display R code without evaluating it.
+
+
+
+# Data Analysis Example : Cherry Blossom Race  Example
+
+
+```{r}
+
+```
+
+
+ 
+
+
+
+We encapsulate 이유 : 하나의 함수로 만드는 것이 분석가에게 더 편해 보임.
+
+
+
+
+
+
+
+
+

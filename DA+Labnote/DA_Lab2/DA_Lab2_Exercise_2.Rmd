@@ -1,0 +1,29 @@
+---
+title: "DA_LAB2_Exercise_1"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# Exercise 2
+
+
+* __2023-1__ Regression Analysis and Lab
+* __2023-1__ Econometrics
+* __2021-1__ Linear Algebra I
+
+
+![my image](https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Linear_regression.svg/300px-Linear_regression.svg.png)
+
+

@@ -1,0 +1,106 @@
+---
+title: "Data Analysis and Lab_Lab 3"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(mdsr)
+```
+
+
+
+
+# ggplot2
+
+
+
+
+## Scales
+
+we will use `diamonds` dataset in ggplot2
+
+```{r}
+ggplot(diamonds, aes(carat, price)) +
+    geom_bin2d()
+#geom_bin2d counts its numbers in some block
+ggplot(diamonds, aes(log10(carat), log10(price))) +geom_bin2d()
+ggplot(diamonds, aes(carat, price)) +
+    geom_bin2d() +
+    scale_x_log10() +
+    scale_y_log10()
+ggplot(diamonds, aes(carat, price)) +
+  geom_bin2d() + 
+  scale_x_continuous(trans = "log10") + 
+  scale_y_continuous(trans = "log10")
+```
+
+
+Of course, the below three graphs are all same.
+
+
+### `RColorBrewer` Packages
+
+```{r}
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(color = drv))
+
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(color = drv)) +
+  scale_colour_brewer(palette = "Set1")
+```
+
+
+
+
+# Statistical transform
+
+
+bar chart? 근본적으로 다른 그래프. geom_bar는 우선 각 data를 그룹별로 구분된 작은 dataframe으로 만들고(by stat::count()), 두 번째 과정에서는 이를 통해 그래프를 그림.
+
+
+만약 '비율'을 보고 싶다면? y에 비율(..prob..)을 써 주면 됨. 
+
+geom_bar function을 쓰지 않는다면 그래프 그리는 과정에서 알파벳순으로 그래프가 그려지는 등 문제 발생.
+
+
+
+# A grammer for data graphics
+
+
+```{r}
+
+```
+
+
+`cut()` function makes the continuous variables into discrete.
+
+
+```{r}
+library(NHANES)
+library(forcats)
+```
+
+
+
+
+
+if you want to make time-series graphs, it is recommended to use line-connected graphs(geom_line)
+
+
+
+# Babynames
+
+
+Notice that the name_plot object does not contain any contextual information, updated in the last code chunk. This was intentional, since we can update the data argument of name_plot and obtain an analogous plot for another name. This functionality makes use of the special %+% operator.
+
+
+
+

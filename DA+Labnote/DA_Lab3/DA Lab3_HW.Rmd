@@ -1,0 +1,135 @@
+---
+title: "Data Analysis and Lab_Lab 3"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(mosaic)
+library(mdsr)
+library(MASS)
+```
+
+
+
+# Exercise 1
+
+
+## (a) Create a scatter plot of each person’s height against their father’s height
+
+
+```{r}
+ggplot(data = Galton) +
+  geom_point(mapping = aes(x = father, y = height))
+```
+
+
+
+## (b) Separate your plot into facets by sex
+
+
+```{r}
+ggplot(data = Galton) +
+  geom_point(mapping = aes(x = father, y = height)) +
+  facet_wrap(~sex)
+```
+
+
+
+## (c) Add regression lines to all of your facets; use `geom_smooth(method = "lm")`.
+
+
+```{r}
+ggplot(data = Galton) +
+  geom_point(mapping = aes(x = father, y = height)) +
+  facet_wrap(~sex) +
+  geom_smooth(mapping = aes(x = father, y = height), method = "lm", formula = y ~ x)
+```
+
+
+
+## (d) Analyze the results of (a), (b) and (c) in 2 ~ 3 sentences.
+
+
+산점도상 자녀의 키와 아버지의 키는 그래프로 봤을 때 양의 상관관계를 가지는 것으로 보인다. 이와 같은 결과는 '남성과 여성의 키 차이를 고려'하여 자녀의 성별에 따라 서로 다른 facet에 각 그래프를 그려도 동일하게 나타난다. 실제 이에 따라 회귀직선을 mapping해 본 경우에도 비슷한 결과가 나온다.
+
+
+
+# Exercise 2
+
+
+```{r eval = FALSE}
+MLB_teams
+```
+
+
+
+## (a) See how many variables you can illustrate on a single plot in R. The current record is 7. [Note: this is not good graphical practice—it is merely an exercise to help you understand how to use visual cues and aesthetics!]
+
+
+```{r}
+MLB_teams %>% 
+  mutate(z_pay = (payroll-mean(payroll))/sd(payroll)) %>%
+  ggplot() +
+  geom_point(mapping = aes(x = z_pay, y = WPct, color = factor(yearID))) +
+  xlim(-4,4) +
+  xlab('z-score for their payroll') +
+  ylab('Win Percent') +
+  labs(title = 'WPct vs. Payroll')
+```
+
+
+
+## (b) Use the `MLB_teams` data in the `mdsr` package to create an informative data graphic that illustrates the relationship between winning percentage `WPct` and payroll `payroll` in context.
+
+
+```{r}
+ggplot(data = MLB_teams, mapping = aes(x = payroll, y = WPct)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+
+Overall there is a positive correlation between payroll and WPct. However, overall payroll tends to increase as time goes.
+
+```{r}
+MLB_teams %>% 
+  group_by(yearID) %>% 
+  summarise(sum(payroll)) 
+```
+
+
+So, we will use z-score. In z-scores, we can see teams below -2.0 did not exist, but teams with z-scores over 3.0 was 3 teams. 
+
+```{r}
+MLB_teams %>% 
+  mutate(z_pay = (payroll-mean(payroll))/sd(payroll)) %>%
+  ggplot() +
+  geom_point(mapping = aes(x = z_pay, y = WPct, color = factor(yearID))) +
+  xlim(-4,4) +
+  xlab('z-score for their payroll') +
+  ylab('Win Percent') +
+  labs(title = 'WPct vs. Payroll')
+```
+
+
+ 
+# Exercises 3 : Write a code to create a data object named `Binary_medv` whose value is `"rich"` if the value of `medv` is greater than 25, `"not so"` if not. Use both `with()` and `ifelse()`.
+
+
+```{r}
+my_Boston <- Boston %>%
+  mutate(Binary_medv = with(Boston, ifelse(medv > 25, 'rich', 'not so'))) %>%
+  relocate(Binary_medv)
+head(my_Boston)
+```
+
+

@@ -1,0 +1,385 @@
+---
+title: "Data Analysis and Lab."  
+subtitle: 'Lab 10: Classification 2'
+author: "Suhwan Bong"
+date: "2023-11-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+
+```{r}
+library(mdsr)
+library(tidyverse)
+library(tidymodels)
+```
+
+## 1. Evaluating Models
+
+How do you know if your model is a good one? In this section, we outline some of the key concepts in model evaluation—a critical step in predictive analytics.
+
+### 1-1. Bias-variance trade-off
+
+We want to have models that minimize both bias and variance, but to some extent these are mutually exclusive goals. A complicated model will have less bias, but will in general have higher variance. A simple model can reduce variance but at the cost of increased bias. The optimal balance between bias and variance depends on the purpose for which the model is constructed (e.g., prediction vs. description of causal relationships) and the system being modeled. One helpful class of techniques—called regularization—provides model architectures that can balance bias and variance in a graduated way. Examples of regularization techniques are ridge regression and the lasso.
+
+(간단한 모델 : for 인과추론.)
+
+### 1-2. Cross-validation
+
+A vexing and seductive trap that modelers sometimes fall into is overfitting. Every model discussed in this chapter is fit to a set of data. That is, given a set of training data and the specification for the type of model, each algorithm will determine the optimal set of parameters for that model and those data. However, if the model works well on those training data, but not so well on a set of testing data—that the model has never seen—then the model is said to be overfitting. Perhaps the most elementary mistake in predictive analytics is to overfit your model to the training data, only to see it later perform miserably on the testing set.
+
+(모델이 복잡하면? 성능이 좋아서인지 overfit인지 판단이 어려움.)
+
+In predictive analytics, data sets are often divided into two sets:
+
+- Training: The set of data on which you build your model
+- Testing: After your model is built, this is the set used to test it by evaluating it against data that it has not previously seen.
+
+For example, in this chapter we set aside 80% of the observations to use as a training set, but held back another 20% for testing. The 80/20 scheme we have employed in this chapter is among the simplest possible schemes, but there are other possibilities. Perhaps a 90/10 or a 75/25 split would be a better option. The goal is to have as much data in the training set to allow the model to perform well while having sufficient numbers in the test set to properly assess it.(5/5 : 잘 안 쓰는듯?)
+
+An alternative approach to combat this problem is cross-validation. To perform a 2-fold cross-validation:
+
+- Randomly separate your data (by rows) into two data sets with the same number of observations. Let’s call them $X_1$ and $X_2$.
+- Build your model on the data in $X_1$, and then run the data in $X_2$ through your model. How well does it perform? Just because your model performs well on $X_1$(this is known as in-sample testing) does not imply that it will perform as well on the data in $X_2$ (out-of-sample testing).
+- Now reverse the roles of $X_1$ and $X_2$, so that the data in $X_2$ is used for training, and the data in $X_1$ is used for testing.
+- If your first model is overfitted, then it will likely not perform as well on the second set of data.
+
+More complex schemes for cross-validating are possible. k-fold cross-validation is the generalization of 2-fold cross validation, in which the data are separated into k equal-sized partitions, and each of the k partitions is chosen to be the testing set once, with the other k−1 partitions used for training.
+
+### 1-3. ROC curves
+
+For classifiers, we have already seen the confusion matrix, which is a common way to assess the effectiveness of a classifier.
+
+Recall that each of the classifiers we have discussed in this chapter are capable of producing not only a binary class label, but also the predicted probability of belonging to either class. Rounding the probabilities in the usual way (using 0.5 as a threshold) may not be a good idea, since the average probability might not be anywhere near 0.5, and thus we could have far too many predictions in one class.(대각선의 의미 : 찍기)
+
+principled approach to assessing the quality of a classifier is a receiver operating characteristic (ROC) curve. This considers all possible threshold values for rounding, and graphically displays the trade-off between sensitivity (the true positive rate) and specificity (the true negative rate). What is actually plotted is the true positive rate as a function of the false positive rate.
+
+ROC curves are common in machine learning and operations research as well as assessment of test characteristics and medical imaging. They can be constructed in R using the yardstick package. Note that ROC curves operate on the fitted probabilities in (0,1)
+
+로지스틱 리그레션은 1일 확률을 예측할 뿐. 로지스틱 분류 '모델'이라 함은 1일 확률이 0.5 이상이면 1을 주는 문턱값까지 포함하는 개념.
+
+![](ROC.png)
+
+### 1-4. Income example
+
+```{r}
+url <-
+"http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data"
+census <- read_csv(
+  url,
+  col_names = c(
+    "age", "workclass", "fnlwgt", "education", 
+    "education_1", "marital_status", "occupation", "relationship", 
+    "race", "sex", "capital_gain", "capital_loss", "hours_per_week", 
+    "native_country", "income"
+  )
+) %>%
+  mutate(income = factor(income))
+glimpse(census)
+```
+
+we will first separate our data set into two pieces by sampling the rows at random. A sample of 80% of the rows will become the training data set, with the remaining 20% set aside as the testing (or “hold-out”) data set. The `initial_split()` function divides the data, while the `training()` and `testing()` functions recover the two smaller data sets.
+
+```{r}
+set.seed(364)
+n <- nrow(census)
+census_parts <- census %>%
+  initial_split(prop = 0.8)
+
+train <- census_parts %>%
+  training()
+
+test <- census_parts %>%
+  testing()
+
+list(train, test) %>%
+  map_int(nrow)
+```
+
+Since the separation was done by selecting rows uniformly at random, and the number of observations was fairly large, it seems likely that both the training and testing set will contain similar information. For example, the distribution of capital_gain is similar in both the testing and training sets. Nevertheless, it is worth formally testing the performance of our models on both sets.(다르다면? 뭔가 이상하게 뽑은 것!)
+
+```{r}
+train %>%
+  skim(capital_gain)
+
+test %>%
+  skim(capital_gain)
+```
+
+We note that at least three quarters of both samples reported no capital gains.
+
+To do this, we build a data frame that contains an identifier for each of our three models, as well as a list-column with the model objects.
+
+Consider three models to predict `income` variable.
+```{r}
+mod_null <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(income ~ 1, data = train)#null model : constant만 생각. 모든 애들을 똑같은 확률로 예측.
+
+mod_log_1 <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(income ~ capital_gain, data = train)
+
+mod_log_all <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(
+    income ~ age + workclass + education + marital_status + 
+      occupation + relationship + race + sex + 
+      capital_gain + capital_loss + hours_per_week, 
+    data = train
+  )
+```
+
+We note that at least three quarters of both samples reported no capital gains.
+
+To do this, we build a data frame that contains an identifier for each of our three models, as well as a list-column with the model objects.
+
+```{r}
+mods <- tibble(
+  type = c("null", "log_1", "log_all"),
+  mod = list(mod_null, mod_log_1, mod_log_all)
+)
+```
+
+We can iterate through the list of models and apply the predict() method to each object, using both the testing and training sets.
+
+```{r}
+mods <- mods %>%
+  mutate(
+    y_train = list(pull(train, income)),
+    y_test = list(pull(test, income)),
+    y_hat_train = map(
+      mod, 
+      ~pull(predict(.x, new_data = train, type = "class"), .pred_class)
+    ),
+    y_hat_test = map(
+      mod, 
+      ~pull(predict(.x, new_data = test, type = "class"), .pred_class)
+    )#from purrr package
+  )
+mods
+```
+
+Now that we have the predictions for each model, we just need to compare them to the truth (y) and tally the results. We can do this using the map2_dbl() function from the purrr package.
+
+```{r}
+mods <- mods %>%
+  mutate(
+    accuracy_train = map2_dbl(y_train, y_hat_train, accuracy_vec),
+    accuracy_test = map2_dbl(y_test, y_hat_test, accuracy_vec),
+    sens_test = 
+      map2_dbl(y_test, y_hat_test, sens_vec, event_level = "second"),
+    spec_test = 
+      map2_dbl(y_test, y_hat_test, spec_vec, event_level = "second")
+  )
+
+mods %>% 
+  select(type, accuracy_train, accuracy_test, sens_test, spec_test)
+```
+
+Note that each model performs slightly worse on the testing set than it did on the training set. As expected, the null model has a sensitivity of 0 and a specificity of 1, because it always makes the same prediction. While the model that includes all of the variables is slightly less specific than the single explanatory variable model, it is much more sensitive. In this case, we should probably conclude that the log_all model is the most likely to be useful.
+
+We compare the ROC curves for all census models on the testing data set. Some data wrangling is necessary before we can gather the information to make these curves.
+
+```{r}
+mods <- mods %>%
+  mutate(
+    y_hat_prob_test = map(
+      mod, 
+      ~pull(predict(.x, new_data = test, type = "prob"), `.pred_>50K`)
+    ),
+    type = fct_reorder(type, sens_test, .desc = TRUE) #sensitivity의 크기에 따라 order 변경.
+  )
+mods %>% #roc_curve 함수를 통해 위의 결과 plotting.
+  select(type, y_test, y_hat_prob_test) %>%
+  unnest(cols = c(y_test, y_hat_prob_test)) %>%
+  group_by(type) %>%
+  roc_curve(truth = y_test, y_hat_prob_test, event_level = "second") %>%
+  autoplot() + 
+  geom_point(
+    data = mods, 
+    aes(x = 1 - spec_test, y = sens_test, color = type), 
+    size = 3
+  ) + 
+  scale_color_brewer("Model", palette = "Set2")
+```
+
+결과 : 더 잘 쓰는 게 더 예측 잘 되네요....
+
+
+## 2. Decision Boundary
+
+Our previous model can be shown as:
+```{r}
+train_plus <- train %>%
+  mutate(high_earner = as.integer(income == ">50K"))
+
+ggplot(train_plus, aes(x = capital_gain, y = high_earner)) + 
+  geom_count(
+    position = position_jitter(width = 0, height = 0.05), 
+    alpha = 0.5
+  ) + 
+  geom_smooth(
+    method = "glm", method.args = list(family = "binomial"), 
+    color = "dodgerblue", lty = 2, se = FALSE
+  ) + 
+  geom_hline(aes(yintercept = 0.5), linetype = 3) + 
+  scale_x_log10(labels = scales::dollar)
+```
+
+Consider a simple logistic model with hours_per_week and age instead of capital_gain.
+
+```{r}
+mod_hours_age <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(income ~ hours_per_week + age, data = train)
+
+broom::tidy(mod_hours_age)
+```
+
+$$
+\hat\pi = \text{expit}(−4.85 + 0.047 · \text{hours} + 0.042 · \text{age})
+$$
+
+For LDA classifier,
+
+```{r}
+library(MASS)
+lda.model = lda(income ~ hours_per_week + age, data = train)
+summary(lda.model)
+lda.model$means
+lda.model$scaling
+```
+
+$$
+\hat\pi = \text{expit}(−4.59 + 0.058 · \text{hours} + 0.053 · \text{age})
+$$
+
+
+```{r}
+ggplot(train, aes(x = hours_per_week, y = age)) + 
+  geom_point(
+    aes(color = income)
+  ) +
+  geom_abline(
+    intercept= 4.85/0.042, slope=-0.047/0.042, size = 1.5, color = 'grey'
+  ) +
+  geom_abline(
+    intercept= 4.59/0.053, slope=-0.058/0.053, size = 1.5, color = 'black'
+  )
+```
+
+
+## 3. Diabete Example
+
+Consider the relationship between age and diabetes mellitus, a group of metabolic diseases characterized by high blood sugar levels. As with many diseases, the risk of contracting diabetes increases with age and is associated with many other factors. Age does not suggest a way to avoid diabetes: there is no way for you to change your age. You can, however, change things like diet, physical fitness, etc. Knowing what is predictive of diabetes can be helpful in practice, for instance, to design an efficient screening program to test people for the disease.
+
+Let’s start simply. What is the relationship between age, body-mass index (BMI), and diabetes for adults surveyed in NHANES? Note that the overall rate of diabetes is relatively low.
+
+```{r}
+library(NHANES)
+people <- NHANES %>%
+  dplyr::select(Age, Gender, Diabetes, BMI, HHIncome, PhysActive) %>% 
+  drop_na()
+glimpse(people)
+
+people %>%
+  group_by(Diabetes) %>%
+  count() %>%
+  mutate(pct = n / nrow(people))
+```
+
+We can visualize any model. In this case, we will tile the (Age, BMI)-plane with a fine grid of 10,000 points.
+```{r}
+library(modelr)
+num_points <- 100
+fake_grid <- data_grid(
+  people, 
+  Age = seq_range(Age, num_points),
+  BMI = seq_range(BMI, num_points)
+)
+```
+
+Next, we will evaluate each of our four models on each grid point, taking care to retrieve not the classification itself, but the probability of having diabetes. The null model considers no variable. The next two models consider only age, or BMI, while the last model considers both.
+
+```{r}
+dmod_null <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(Diabetes ~ 1, data = people)
+dmod_log_1 <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(Diabetes ~ Age, data = people)
+dmod_log_2 <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(Diabetes ~ BMI, data = people)
+dmod_log_12 <- logistic_reg(mode = "classification") %>%
+  set_engine("glm") %>%
+  fit(Diabetes ~ Age + BMI, data = people)
+bmi_mods <- tibble(
+  type = factor(
+    c("Null", "Logistic (Age)", "Logistic (BMI)", "Logistic (Age, BMI)")
+  ),
+  mod = list(dmod_null, dmod_log_1, dmod_log_2, dmod_log_12),
+  y_hat = map(mod, predict, new_data = fake_grid, type = "prob")
+)
+```
+
+Next, we add the grid data (X), and then use `map2()` to combine the predictions (y_hat) with the grid data.
+
+```{r}
+bmi_mods <- bmi_mods %>%
+  mutate(
+    X = list(fake_grid),
+    yX = map2(y_hat, X, bind_cols)#각 grid에 대한 예측값.
+  )
+```
+
+Finally, we use `unnest()` to stretch the data frame out. We now have a prediction at each of our 10,000 grid points for each of our four models.
+
+```{r}
+res <- bmi_mods %>%
+  dplyr::select(type, yX) %>%
+  unnest(cols = yX)
+res
+```
+
+The following figure illustrates each model in the data space. Whereas the null model predicts the probability of diabetes to be constant irrespective of age and BMI, including age (BMI) as an explanatory variable allows the predicted probability to vary in the horizontal (vertical) direction. Older patients and those with larger body mass have a higher probability of having diabetes. Having both variables as covariates allows the probability to vary with respect to both age and BMI.
+
+```{r}
+ggplot(data = res, aes(x = Age, y = BMI)) +
+  geom_tile(aes(fill = .pred_Yes), color = NA) + 
+  geom_count(
+    data = people, 
+    aes(color = Diabetes), alpha = 0.4
+  ) + 
+  scale_fill_gradient("Prob of\nDiabetes", low = "white", high = "red") + 
+  scale_color_manual(values = c("gold", "black")) + 
+  scale_size(range = c(0, 2)) + 
+  scale_x_continuous(expand = c(0.02, 0)) + 
+  scale_y_continuous(expand = c(0.02, 0)) + 
+  facet_wrap(~fct_rev(type))#최종 그래프. 오른쪽 끝으로 갈수록 높아지는 경향. age, BMI와 모두 양의 상관관계.
+```
+
+## 4. Exercises
+
+### Problem 1. 
+Investigators in the HELP (Health Evaluation and Linkage to Primary Care) study were interested in modeling the probability of being homeless (one or more nights spent on the street or in a shelter in the past six months vs. housed) as a function of age. Use the `HELPrct` data from the mosaicData package.
+
+(a) Generate a confusion matrix for the null model and interpret the result.
+(b) Fit and interpret logistic regression model for the probability of being homeless as a function of age.
+(c) What is the predicted probability of being homeless for a 20 year old? For a 40 year old?
+(d) Generate a confusion matrix for the second model and interpret the result.
+
+### Problem 2.
+What impact does the random number seed have on our results?
+
+(a) Repeat the Census logistic regression model that controlled only for capital gains but using a different random number seed (365 instead of 364) for the 80%/20% split. Would you expect big differences in the accuracy using the training data? Testing data?
+(b) Repeat the process using a random number seed of 366. What do you conclude?
+
+### Problem 3.
+Suppose that you are a data analyst! 
+
+Smoking is an important public health concern. Use the NHANES data from the NHANES package to develop model that identifies predictors of current smoking among those 20 or older. (Hint: note that the SmokeNow variable is missing for those who have never smoked: you will need to recode the variable to construct your outcome variable.) Use several models and compare them to obtain your result.

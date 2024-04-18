@@ -1,0 +1,938 @@
+---
+title: "Data Analysis and Lab."  
+subtitle: 'Lab 4. Data Wrangling'
+author: "Suhwan Bong"
+date: "2023-09-26"
+output:
+  html_document: default
+  pdf_document:
+    latex_engine: xelatex
+mainfont: NanumGothic
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE) 
+```
+ 
+
+___
+
+</br>
+
+## 1. A grammar of Data Wrangling/ manipulation
+
+## Single Table Verbs
+
+`dplyr` provides a suite of verbs for data manipulation:  
+
+* `filter()`: select rows (observations) in a data frame;  
+* `arrange()`: reorder rows in a data frame;  
+* `select()`: select columns (variables) in a data frame;  
+* `mutate()`: add new columns to a data frame;  
+* `summarise()`: collapses a data frame to a single row; 
+
+See texbook figures 4.1--4.5 for a graphical illustration of these operations. 
+
+These can all be used in conjunction with `group_by()` which changes the scope of each function from operating on the entire dataset to operating on it group-by-group. These six functions provide the verbs for a language of data manipulation.
+
+All verbs work similarly:
+
+1. The first argument is a data frame.
+
+2. The subsequent arguments describe what to do with the data frame, using the variable names (without quotes).
+
+3. The result is a new data frame.
+
+Together these properties make it easy to chain together multiple simple steps to achieve a complex result. 
+We have demonstrated the use of these functions on the `presidential` data frame (from the <tt>ggplot2</tt> package), the `nycflights13::flights` data set,
+and the Uber Data in April-September 2014 data set.
+
+## 2. Extended example: Baseball database when Ben’s time with the Mets
+
+In this lab, we will explore Sean Lahman's historical baseball database, which contains complete seasonal records for all players on all *Major League Baseball* (MLB) teams going back to 1871. These data are made available in R via the <tt>Lahman</tt> package. While domain knowledge may be helpful, it is not necessary to follow the example. [Baseball statistics Terms](https://en.wikipedia.org/wiki/Baseball_statistics)
+
+```{r}
+#install.packages("Lahman")
+library(Lahman)
+library(dplyr)
+dim(Teams)
+head(Teams, 2)
+```
+Sean Lahman's Baseball Database is not just one dataset. Type `help("Lahman-package")` to get an idea of the data tables available. The batting statistics of players are stored in one table (`Batting`), while information about people (most of whom are players) is in a different table (`People`).
+
+The `Teams` table contains the seasonal results of every major league team in every season since 1871 until 2021. There are 2955 rows and 48 columns in this table, which is far too much to show here, so, we can take a peek at what this table looks like by printing the first few rows of the table to the screen with the `head()` command.
+
+<span style="font-size:150%; color:blue">①</span> **Ben Baumer worked for the New York Mets from 2004 to 2012.** How did the team do during those years? We can use `filter()` and `select()` to quickly identify only those pieces of information that we care about.
+
+```{r}
+mets <- Teams %>% 
+  filter(teamID == "NYN")
+nrow(mets)
+
+my_mets <- mets %>% 
+  filter(yearID %in% 2004:2012)
+my_mets %>% 
+  select(yearID, teamID, W, L)
+```
+
+While this process is logical, the code can get unruly, since two ancillary data frames (`mets` and `my_mets`) were created during the process. It may be the case that we’d like to use data frames later in the analysis. But if not, they are just cluttering our workspace, and eating up memory. A more streamlined way to achieve the same result would be to *nest* these commands together.
+
+```{r}
+select(filter(Teams, teamID == "NYN" & yearID %in% 2004:2012),
+  yearID, teamID, W, L)
+```
+
+This way, no additional data frames were created. However, it is easy to see that as we nest more and more of these operations together, this code could become difficult to read. To maintain readability, we instead chain these operations, rather than nest them (and get the same exact results).
+
+```{r}
+Teams %>%
+  filter(teamID == "NYN" & yearID %in% 2004:2012) %>%
+  select(yearID, teamID, W, L)
+```
+
+This piping syntax (introduced in Section 4.1.1) is provided by the <tt>dplyr</tt> package. It retains the step-by-step logic of our original code, while being easily readable, and efficient with respect to memory and the creation of temporary data frames. Note that we only have to type Teams once—it is implied by the pipe operator (`%>%`) that the subsequent command takes the previous data frame as its first argument. Thus, `df %>% f(y)` is equivalent to `f(df, y)`.
+
+We’ve answered the simple question of how the Mets performed during the time that Ben was there, but since we are data scientists, we are interested in **deeper questions.** For example, some of these seasons were <span style="font-size:150%; color:blue">②</span>**subpar—the Mets had more losses than wins. Did the team just get unlucky in those seasons? Or did they actually play as badly as their record indicates?**
+
+In order to answer this question, we need a model for expected winning percentage. It turns out that one of the most widely used contributions to the field of baseball analytics (courtesy of Bill James) is exactly that. This model translates the number of runs that a team scores and allows over the course of an entire season into an expectation for how many games they should have won. The simplest version of this model is this:
+
+Model : 
+<div style="text-align:center">
+$\displaystyle \widehat{WPct} = \frac{1}{1+(\frac{RA}{RS})^2}$ 
+</div>
+where $RA$ is the number of runs the team allows to be scored, $RS$ is the number of runs that the team scores, and $\widehat{WPct}$ is the team’s expected winning percentage. Luckily for us, the runs scored and allowed are present in the `Teams` table, so let’s grab them and save them in a new data frame.
+
+```{r}
+mets_ben <- Teams %>% 
+  select(yearID, teamID, W, L, R, RA) %>%
+  filter(teamID == "NYN" & yearID %in% 2004:2012)
+mets_ben
+```
+
+First, note that the runs-scored variable is called R in the Teams table, but to stick with our notation we want to rename it RS.
+```{r}
+mets_ben <- mets_ben %>% 
+  rename(RS = R)    # new name = old name
+mets_ben
+mets_ben <- mets_ben %>% 
+  mutate(WPct = W / (W + L), WPct_hat = 1 / (1 + (RA/RS)^2), W_hat = WPct_hat * (W + L)) 
+mets_ben
+  # WPct = the team’s actual winning percentage in each of these seasons
+  # WPct_hat = the model estimates for winning percentage.
+  # W_hat = The expected number of wins
+```
+
+```{r}
+filter(mets_ben, W >= W_hat); filter(mets_ben, W < W_hat)
+```
+In this case, the Mets’ fortunes were better than expected in three of these seasons, and worse than expected in the other six, i.e., the Mets experienced ups and downs during Ben’s time with the team. Then, <span style="font-size:150%; color:blue">③</span>**which seasons were best?** To figure this out, we can simply sort the rows of the data frame.
+
+```{r}
+arrange(mets_ben, desc(WPct))
+```
+In 2006, the Mets had the best record in baseball during the regular season and nearly made the World Series. <span style="font-size:150%; color:blue">④</span>**How do these seasons rank in terms of the team’s performance relative to our model?**
+```{r}
+mets_ben %>% 
+  mutate(Diff = W - W_hat) %>% 
+  arrange(desc(Diff))
+```
+It appears that 2006 was the Mets’ most fortunate year—since they won five more games than our model predicts—but 2005 was the least fortunate—since they won almost seven games fewer than our model predicts. This type of analysis helps us understand how the Mets performed in individual seasons, but we know that any randomness that occurs in individual years is likely to average out over time. <span style="font-size:150%; color:blue">⑤</span>**So while it is clear that the Mets performed well in some seasons and poorly in others, what can we say about their overall performance?**
+
+We can easily summarize a single variable with the `skim()` command from the <tt>mdsr</tt> package.
+```{r}
+library(mdsr)
+#mets_ben$W; #summary(mets_ben$W)
+mets_ben %>% skim(W)
+```
+This tells us that the Mets won nearly 81 games on average during Ben’s tenure, which corresponds almost exactly to a 0.500 winning percentage, since there are 162 games in a regular season. But we may be interested in aggregating more than one variable at a time. To do this, we use `summarize()`.
+```{r}
+mets_ben %>% 
+  summarize(
+    num_years = n(), 
+    total_W = sum(W), 
+    total_L = sum(L), 
+    total_WPct = sum(W) / sum(W + L), 
+    sum_resid = sum(W - W_hat)
+  )
+```
+In these nine years, the Mets had a combined record of 728 wins and 730 losses, for an overall winning percentage of .499. Just one extra win would have made them exactly 0.500! However, we’ve also learned that the team under-performed relative to our model by a total of 10.6 games over those nine seasons.
+
+___
+
+</br>
+
+Usually, when we are summarizing a data frame like we did above, it is interesting to consider different groups. In this case, we can discretize these years into three chunks: one for each of the three general managers under whom Ben worked. Jim Duquette was the Mets’ *general manager* in 2004, Omar Minaya from 2005 to 2010, and Sandy Alderson from 2011 to 2012. We can define these eras using two nested `ifelse()` functions.
+
+```{r}
+mets_ben <- mets_ben %>% 
+  mutate(
+    gm = ifelse(yearID == 2004, 
+      "Duquette", 
+      ifelse(yearID >= 2011,"Alderson","Minaya"))
+    )
+mets_ben
+```
+
+Another, more scalable approach to accomplishing this same task is to use a `case_when()` expression. * Don’t use nested `ifelse()` statements: `case_when()` is far simpler.
+
+```{r}
+mets_ben <- mets_ben %>% 
+  mutate(
+    gm = case_when(
+      yearID == 2004 ~ "Duquette", 
+      yearID >= 2011 ~ "Alderson", 
+      TRUE ~ "Minaya"
+    )
+  )
+```
+
+Next, we use the `gm` variable to define these groups with the `group_by()` operator. The combination of summarizing data by groups can be very powerful. Note that while the Mets were far more successful during Minaya’s regime (i.e., many more wins than losses), they did not meet expectations in any of the three periods.
+
+```{r}
+mets_ben %>% 
+  group_by(gm) %>% 
+  summarize(
+    num_years = n(), 
+    total_W = sum(W), 
+    total_L = sum(L), 
+    total_WPct = sum(W) / sum(W + L), 
+    sum_resid = sum(W - W_hat)
+  ) %>%
+  arrange(desc(sum_resid))
+```
+
+The full power of the chaining operator is revealed below, where we do all the analysis at once, but retain the step-by-step logic.
+
+```{r}
+Teams %>%
+  select(yearID, teamID, W, L, R, RA) %>%
+  filter(teamID == "NYN" & yearID %in% 2004:2012) %>%
+  rename(RS = R) %>% 
+  mutate(
+    WPct = W / (W + L), 
+    WPct_hat = 1 / (1 + (RA/RS)^2), 
+    W_hat = WPct_hat * (W + L), 
+    gm = case_when(
+      yearID == 2004 ~ "Duquette", 
+      yearID >= 2011 ~ "Alderson", 
+      TRUE ~ "Minaya"
+    )
+  ) %>%
+  group_by(gm) %>%
+  summarize(
+    num_years = n(), 
+    total_W = sum(W), 
+    total_L = sum(L),
+    total_WPct = sum(W) / sum(W + L), 
+    sum_resid = sum(W - W_hat)
+  ) %>%
+  arrange(desc(sum_resid))
+```
+
+Even more generally, we might be more interested in how the Mets performed relative to our model, **in the context of all teams during that 9-year period.** All we need to do is remove the `teamID` filter and group by franchise (`franchID`) instead.
+
+```{r}
+Teams %>%
+  select(yearID, teamID, franchID, W, L, R, RA) %>%
+  filter(yearID %in% 2004:2012) %>%
+  rename(RS = R) %>% 
+  mutate(
+    WPct = W / (W + L), 
+    WPct_hat = 1 / (1 + (RA/RS)^2), 
+    W_hat = WPct_hat * (W + L)
+  ) %>%
+  group_by(franchID) %>%
+  summarize(
+    num_years = n(), 
+    total_W = sum(W), 
+    total_L = sum(L),
+    total_WPct = sum(W) / sum(W + L), 
+    sum_resid = sum(W - W_hat)
+  ) %>%
+  arrange(sum_resid) %>%
+  head(6)
+```
+
+## 3. Reshaping Data : Data Tidying Verbs
+
+The goal of tidyr is to help you create *tidy data*. Tidy data is data where:
+
+- Each variable is in a column.
+- Each observation is a row.
+- Each value is a cell.
+
+Tidy data describes a standard way of storing data that is used wherever possible throughout the tidyverse. If you ensure that your data is tidy, you'll spend less timing fighting with the tools and more time working on your analysis.
+
+
+Each row of a tidy data table is an individual case. It is often useful to re-organize the same data in a such a way that a case has a different meaning. This can make it easier to perform wrangling tasks such as comparisons, joins, and the inclusion of new data. 
+
+Consider the format of `BP_wide` shown in Table 1, in which each case is a research study subject and there are separate variables for the measurement of systolic blood pressure (SBP) before and after exposure to a stressful environment. Exactly the same data can be presented in the format of the `BP_narrow`(also called "long") data table (Table 2), where the case is an individual occasion for blood pressure measurement.
+
+Each of the formats "wide" and "long" has its advantages and its disadvantages. For example, it is easy to find the before-and-after change in blood pressure using "wide" format as in the Table 3. On the other hand, a "long" format is more flexible for including additional variables, for example the date of the measurement or the diastolic blood pressure(dbp) as in the Table 4. The narrow format also makes it feasible to add in additional measurement occasions. For instance, Table 4 shows several “after” measurements for subject “WJC.” A simple strategy allows you to get the benefits of either format: convert from wide to narrow or from narrow to wide as suits your purpose.
+```{r, echo=FALSE, message=FALSE}
+library(tidyverse)
+BP_narrow <- tribble(
+  ~subject, ~when, ~sbp,
+  "BHO", "before", 160,
+  "GWB", "before", 120,
+  "WJC", "before", 105,
+  "BHO", "after", 115,
+  "GWB", "after", 135,
+  "WJC", "after", 145
+)
+BP_wide <- BP_narrow %>% pivot_wider(names_from = "when", values_from = "sbp")
+BP_new<-BP_wide %>% mutate(change = after - before)
+library(lubridate)
+BP_full<-tribble(
+  ~subject, ~when, ~sbp,
+  "BHO", "before", 160,
+  "GWB", "before", 120,
+  "BHO", "before", 155,
+  "WJC", "after", 145,
+  "WJC", "after", NA,
+  "WJC", "after", 130,
+  "GWB", "after", 135,
+  "WJC", "before", 105,
+  "BHO", "after", 115) %>% add_column(dbp=c(69,54,65,75,65,60,NA,60,78)) %>% add_column(date=ymd("2007-06-19","1998-04-21","2005-11-08","2002-11-15","2010-03-26","2013-09-15","2009-05-08","1990-08-17","2017-06-04"))
+```
+
+`tidyr` provides a suite of verbs to make data suitable to use with software:
+
+* `gather()`: takes multiple columns, and gathers them into key-value pairs: it makes "wide" data longer.; 
+* `spread()`: takes two columns (key & value) and spreads in to multiple columns, it makes "long" data wider.;
+* `separate()`: makes it easier to pull apart a column that represents multiple variables.; 
+* `unite()`: complement to `separate()`; 
+
+But now, `pivot_longer()` is an updated approach to `gather()`, designed to be both simpler to use and to handle more use cases. We recommend you use `pivot_longer()` for new code; `gather()` isn't going away but is no longer under active development. Likewise, `pivot_wider()` is an updated approach to `spread()`.
+
+* `pivot_longer()`: "lengthens" data, increasing the number of rows and decreasing the number of columns. 
+* `pivot_wider()`: "widens" data, increasing the number of columns and decreasing the number of rows.
+
+`pivot_wider()` function:
+
+- `data` : dataframe that you want to make from narrow to wide
+
+- `names_from` : name of the variable(column) in the narrow format that identifies for each case individually which column in the wide format will receive the value.
+
+- `values_from` : name of the variable in the narrow format that is to be divided up into multiple variables in the resulting wide format.
+
+```{r figure1, echo=FALSE, fig.cap="Converting narrow(long) to Wider", fig.align='center', out.width = '50%'}
+knitr::include_graphics("wider.png")
+#Reference: https://2stndard.tistory.com/81
+```
+
+In the SBP example, note that the different categorical levels in `when` specify which variable in `BP_wide` will be the destination for the `sbp` value of each case. Only the names_from and values_from variables are involved in the transformation from narrow to wide. Other variables in the narrow table, such as subject in BP_narrow, are used to define the cases. Thus, to translate from `BP_narrow` to `BP_wide` we would write this code:
+
+```{r pivotwider}
+BP_narrow %>% pivot_wider(names_from = when, values_from = sbp)
+```
+
+
+
+`pivot_longer()` function:
+
+- `data` : dataframe that you want to make from wide to narrow and long
+
+- `cols` : names, numbers, or range of columns of the dataframe to be gathered together   
+
+- `names_to` : name of the variable(column) in the wide format to be newly invented.
+
+- `values_to` : name of the variable(column) which hold the values in the variables being gathered.
+
+```{r figure2, echo=FALSE, fig.cap="Converting wide to Longer", fig.align='center', out.width = '50%'}
+knitr::include_graphics("longer.png")
+#Reference: https://2stndard.tistory.com/81
+```
+
+
+In the SBP example, the names of the variables to be gathered together, `before` and `after`, will become the categorical levels in the narrow form. 
+That is, they will make up the `names_to` variable in the narrow form. The data analyst has to invent a name for this variable. There are all sorts of sensible possibilities, for instance `before_or_after`. In gathering `BP_wide` into `BP_narrow`, we chose the concise variable name `when`.
+
+Similarly, a name must be specified for the variable that is to hold the values in the variables being gathered. There are many reasonable possibilities. It is sensible to choose a name that reflects the kind of thing those values are, in this case systolic blood pressure. So, `sbp` is a good choice.
+
+Finally, we need to specify which variables are to be gathered. For instance, it hardly makes sense to gather `subject` with the other variables; it will remain as a separate variable in the narrow result. Values in `subject` will be repeated as necessary to give each case in the narrow format its own correct value of `subject`. In summary, to convert `BP_wide` into `BP_narrow`, we make the following call to `pivot_longer()`.
+
+```{r pivotlonger}
+BP_wide %>% pivot_longer(-subject, names_to = "when", values_to = "sbp")
+```
+
+## 4. List-columns and Naming Conventions
+
+Consider the following simple summarization of the blood pressure data. Using the techniques developed in Section 4.1.4, we can compute the mean systolic blood pressure for each subject both before and after exposure. 
+
+```{r}
+library(readr)
+BP_full %>%
+  group_by(subject, when) %>%
+  summarize(mean_sbp = mean(sbp, na.rm = TRUE))
+```
+
+But what if we want to do additional analysis on the blood pressure data? The individual observations are not retained in the summarized output. Can we create a summary of the data that still contains *all* of the observations?
+
+One simplistic approach would be to use `paste()` with the `collapse` argument to condense the individual operations into a single vector.
+
+```{r}
+BP_summary <- BP_full %>%
+  group_by(subject, when) %>%
+  summarize(
+    sbps = paste(sbp, collapse = ", "),
+    dbps = paste(dbp, collapse = ", ")
+  )
+BP_summary
+```
+
+This can be useful for seeing the data, but you can’t do much computing on it, because the variables `sbps` and `dbps` are `character` vectors. As a result, trying to compute, say, the mean of the systolic blood pressures won’t work as you hope it might. Note that the means computed below are wrong.
+
+```{r}
+BP_summary %>%
+  mutate(mean_sbp = mean(parse_number(sbps)))
+```
+Additionally, you would have to write the code to do the summarization for every variable in your data set, which could get cumbersome.
+
+**Instead,** the **`nest()`** function will collapse *all* of the ungrouped variables in a data frame into a `tibble` (a simple data frame). This creates a new variable of type `list`, which by default has the name `data`. Each element of that `list` has the type `tibble`. Although you can’t see all of the data in the output printed here, it’s all in there. Variables in data frames that have type `list` are called *list-columns*.
+
+```{r}
+BP_nested <- BP_full %>%
+  group_by(subject, when) %>%
+  nest()
+BP_nested
+```
+
+This construction works because a data frame is just a "list of vectors" of the same length, and the type of those vectors is arbitrary. Thus, the `data` variable is a vector of type "`list` that consists of `tibble`s". Note also that the dimensions of each tibble (items in the `data` list) can be different.
+
+The ability to collapse a long data frame into its nested form is particularly useful in the context of model fitting, which we illustrate in Chapter 11.(Supervised Learning)
+
+While every list-column has the type `list`, the type of the data contained within that list can be anything. Thus, while the `data` variable contains a list of tibbles, we can extract only the systolic blood pressures, and put them in their own list-column. It’s tempting to try to `pull()` the `sbp` variable out like this:
+
+```{r, error=TRUE}
+BP_nested %>%
+  mutate(sbp_list = pull(data, sbp))
+```
+The problem is that `data` is not a `tibble`. Rather, it’s a `list` of `tibble`s. To get around this, we need to use the `map()` function, which is described in Chapter 7. For now, it’s enough to understand that we need to apply the `pull()` function to each item in the `data` list. The `map()` function allows us to do just that, and further, it always returns a `list`, and thus creates a new list-column.
+```{r}
+BP_nested <- BP_nested %>%
+  mutate(sbp_list = map(data, pull, sbp))
+BP_nested
+```
+Again, note that `sbp_list` is a `list`, with each item in the list being a vector of type `double`. These vectors need *not* have the same length! We can verify this by isolating the `sbp_list` variable with the `pluck()` function.
+
+```{r}
+BP_nested %>% 
+  pluck("sbp_list")
+```
+
+Because all of the systolic blood pressure readings are contained within this `list`, a further application of `map()` will allow us to compute the mean.
+
+```{r}
+BP_nested <- BP_nested %>%
+  mutate(sbp_mean = map(sbp_list, mean, na.rm = TRUE))
+BP_nested
+```
+
+`BP_nested` still has a nested structure. However, the column `sbp_mean` is a `list` of `double` vectors, each of which has a single element. We can use `unnest()` to undo the nesting structure of that column. In this case, we retain the same 6 rows, each corresponding to one subject either before or after intervention.
+
+```{r}
+BP_nested %>%
+  unnest(cols = c(sbp_mean))
+```
+n the other hand, an application of `unnest()` to the `sbp_list` variable, which has more than one observation for each row, results in a data frame with one row for each observed subject on a specific date. This transforms the data back into the same unit of observation as `BP_full`.
+
+```{r}
+BP_nested %>%
+  unnest(cols = c(sbp_list))
+```
+
+### 4-1. Another Example: Gender-neutral names
+```{r}
+library(babynames)
+babynames %>% 
+  filter(name == "Sue") %>%
+  group_by(name, sex) %>% 
+  summarize(total = sum(n)); 
+babynames %>% 
+  filter(name == "Robin") %>%
+  group_by(name, sex) %>% 
+  summarize(total = sum(n))
+```
+
+This computational paradigm (e.g., filtering) works well if you want to look at gender balance in one name at a time, but suppose you want to find the most gender-neutral names from all 97,310 names in `babynames`? For this, it would be useful to have the results in a wide format, like the one shown below.
+
+```{r}
+babynames %>%
+  filter(name %in% c("Sue", "Robin", "Leslie")) %>%
+  group_by(name, sex) %>%
+  summarize(total = sum(n)) %>%
+  pivot_wider(
+    names_from = sex, 
+    values_from = total
+  )
+```
+
+The `pivot_wider()` function can help us generate the wide format. Note that the `sex` variable is the `names_from` used in the conversion. A fill of zero is appropriate here: For a name like `Aaban` or `Aadam`, where there are no females, the entry for `F` should be zero.
+
+```{r}
+baby_wide <- babynames %>%
+  group_by(sex, name) %>%
+  summarize(total = sum(n)) %>%
+  pivot_wider(
+    names_from = sex, 
+    values_from = total, 
+    values_fill = 0
+  )
+head(baby_wide, 4)
+```
+
+The code to identify the most balanced gender-neutral names out of the names with more than 50,000 babies of each sex is shown below. Remember, a ratio of 1 means exactly balanced; a ratio of 0.5 means two to one in favor of one sex; 0.33 means three to one. (The `pmin()` transformation function returns the smaller of the two arguments for each individual case.)
+
+```{r}
+baby_wide %>% 
+  filter(M > 50000, F > 50000) %>%
+  mutate(ratio = pmin(M / F, F / M) ) %>% 
+  arrange(desc(ratio)) %>% 
+  head(3)
+```
+Riley has been the most gender-balanced name, followed by Jackie.
+
+
+
+### 4-2. Naming Conventions
+Like any language, **R** has some rules that you cannot break, but also many conventions that you can—but should not—break. There are a few simple rules that apply when creating a *name* for an object. In this book and in our teaching, we follow the [tidyverse style guide](https://style.tidyverse.org)—which is public, widely adopted, and influential—as closely as possible. It provides guidance about how and why to adopt a particular style. Other groups (e.g., Google) have adopted variants of this guide. This means:
+
+- The name cannot start with a digit. So you cannot assign the name `100NCHS` to a data frame, but `NCHS100` is fine. This rule is to make it easy for **R** to distinguish between object names and numbers. It also helps you avoid mistakes such as writing `2pi` when you mean `2*pi`.
+
+- The name cannot contain any punctuation symbols other than `.` and `_`. So `?NCHS` or `N*Hanes` are not legitimate names. However, you can use `.` and `_` in a name. For reasons that will be explained later, the use of `.` in function names has a specific meaning, but should otherwise be avoided(This is restriced to S3 methods). The use of `_` is preferred. **Do not use . in function names, to avoid conflicting with internal functions.**
+
+- We use *[snake_case](https://en.wikipedia.org/wiki/Snake_case)* for the names of things. This means that each “word” is lowercase, and there are no spaces, only underscores. (The **janitor** package provides a function called `clean_names()` that by default turns variable names into snake case (other styles are also supported.)
+
+- We use spaces liberally and prefer multiline, narrow blocks of code to single lines of wide code (although we occasionally relax this to save space on the printed page).
+
+- The case of the letters in the name matters. So `NCHS`, `nchs`, `Nchs`, and `nChs`, etc., are all different names that only look similar to a human reader, not to **R**.
+
+The styler package can be used to reformat code into a format that implements the tidyverse style guide.
+
+
+## 5. Data Intake and Cleaning 
+
+<Blockquote>
+“Every easy data format is alike. Every difficult data format is difficult in its own way.”
+
+—inspired by Leo Tolstoy and Hadley Wickham
+</Blockquote>
+
+The tools that we develop in this book allow one to work with data in **R**. However, most data sets are not available in **R** to begin with—they are often stored in a different file format. While **R** has sophisticated abilities for reading data in a variety of formats, it is not without limits. For data that are not in a file, one common form of data intake is Web scraping, in which data from the internet are processed as (structured) text and converted into data. Such data often have errors that stem from blunders in data entry or from deficiencies in the way data are stored or coded. Correcting such errors is called *[data cleaning](https://en.wikipedia.org/wiki/Data_cleansing)*.
+
+The native file format for **R** is usually given the suffix `.rda` (or sometimes, `.RData`). Any object in your **R** environment can be written to this file format using the `saveRDS()` command. Using the compress argument will make these files smaller.
+```{r}
+saveRDS(mtcars, file = "mtcars.rda", compress = TRUE)
+```
+This file format is usually an efficient means for storing data, but it is not the most portable. To load a stored object into your **R** environment, use the `readRDS()` command.
+```{r}
+mtcars <- readRDS("mtcars.rda")
+```
+Maintaining the provenance of data from beginning to the end of an analysis is an important part of a reproducible workflow. This can be facilitated by creating one Markdown file or notebook that undertakes the data wrangling and generates an analytic data set (using `saveRDS()`) that can be read (using `readRDS()`) into a second Markdown file.
+
+Many formats for data are essentially equivalent to data tables. When you come across data in a format that you don’t recognize, it is worth checking whether it is one of the data-table–friendly formats. Sometimes the filename extension provides an indication. Here are several, each with a brief description:
+
+- **CSV**: easy to understand, but are not compressed, and therefore can take up more space on disk than other formats.
+
+- **Software-package specific format**: some common examples include: *Octave, Stata, SPSS, Minitab, SAS, Epi*
+
+- **Relational databases**: the form that much of institutional, actively-updated data are stored in. This includes business transaction records, government records, Web logs, and so on. (See Chapter 15 for a discussion of relational database management systems.)
+
+- **Excel**: a set of proprietary spreadsheet formats heavily used in business. Watch out, though. Just because something is stored in an Excel format doesn’t mean it is a data table. Excel is sometimes used as a kind of tablecloth for writing down data with no particular scheme in mind.
+
+- **Web-related**: For example: *HTML, XML, JSON, Google Sheets, application programming interface*(API)
+
+The procedure for reading data in one of these formats varies depending on the format. For Excel or Google Sheets data, it is sometimes easiest to use the application software to export the data as a CSV file. There are also **R** packages for reading directly from either (**readxl** and **googlesheets4**, respectively), which are useful if the spreadsheet is being updated frequently. 
+For the technical software package formats, the **haven** package provides useful reading and writing functions. For relational databases, even if they are on a remote server, there are several useful **R** packages that allow you to connect to these databases directly, most notably **dbplyr** and **DBI**. CSV and HTML `<table>` formats are frequently encountered sources for data scraping, and can be read by the **readr** and **rvest** packages, respectively. The next subsections give a bit more detail about how to read them into **R**.
+
+### 5-1. CSV(comma Separated Value) files
+
+```{verbatim}
+"year","sex","name","n","prop"
+1880,"F","Mary",7065,0.07238359
+1880,"F","Anna",2604,0.02667896
+1880,"F","Emma",2003,0.02052149
+1880,"F","Elizabeth",1939,0.01986579
+1880,"F","Minnie",1746,0.01788843
+1880,"F","Margaret",1578,0.0161672
+```
+The top row usually (but not always) contains the variable names. Quotation marks are often used at the start and end of character strings—these quotation marks are not part of the content of the string, but are useful if, say, you want to include a comma in the text of a field. CSV files are often named with the `.csv` suffix; it is also common for them to be named with `.txt`, `.dat`, or other things. You will also see characters other than commas being used to delimit the fields: tabs and vertical bars (or pipes, i.e., `|`) are particularly common.
+Note: Be careful with **date** and **time** variables in CSV format: these can sometimes be formatted in inconsistent ways that make it more challenging to ingest.
+
+Since reading from a CSV file is so common, several implementations are available. The `read.csv()` function in the base package is perhaps the most widely used, but the more recent `read_csv()` function in the readr package is noticeably faster for large CSVs. CSV files need not exist on your local hard drive. For example, here is a way to access a `.csv` file over the internet using a URL (universal resource locator).
+
+```{r}
+mdsr_url <- "https://raw.githubusercontent.com/mdsr-book/mdsr/master/data-raw/"
+houses <- mdsr_url %>%
+  paste0("houses-for-sale.csv") %>%
+  read_csv()
+head(houses, 3)
+```
+
+### 5-2. HTML tables
+
+Web pages are HTML documents, which are then translated by a browser to the formatted content that users see. HTML includes facilities for presenting tabular content. The HTML `<table>` markup is often the way human-readable data is arranged.
+
+Example: [Mile run world record Progression](https://en.wikipedia.org/wiki/Mile_run_world_record_progression#Amateurs)
+This page contains several tables, each of which contains a list of new world records for a different class of athlete (e.g., men, women, amateur, professional, etc.).
+
+When you have the URL of a page containing one or more tables, it is sometimes easy to read them into **R** as data tables. Since they are not CSVs, we can’t use `read_csv()`. Instead, we use functionality in the **rvest** package to ingest the HTML as a data structure in **R**. Once you have the content of the Web page, you can translate any tables in the page from HTML to data table format.
+```{r}
+library(rvest)
+url <- "http://en.wikipedia.org/wiki/Mile_run_world_record_progression"
+tables <- url %>% 
+  read_html() %>% 
+  html_nodes("table")
+```
+
+The result, `tables`, is not a data table. Instead, it is a `list` of the tables found in the Web page. Use `length()` to find how many items there are in the list of tables.
+```{r}
+length(tables)
+```
+You can access any of those tables using the `pluck()` function from the **purrr** package, which extracts items from a `list`. Unfortunately, as of this writing the `rvest::pluck()` function masks the more useful `purrr::pluck()` function, so we will be specific by using the double-colon operator. The first table is `pluck(tables, 1)`, the second table is `pluck(tables, 2)`, and so on. The third table—which corresponds to amateur men up until 1862—is shown in the URL.
+```{r}
+amateur <- tables %>%
+  purrr::pluck(3) %>%
+  html_table();
+records <- tables %>%
+  purrr::pluck(4) %>%
+  html_table() %>%
+  select(-X1)  # remove unwanted column
+```
+
+### 5-3. Cleaning Data
+
+Data cleaning refers to taking the information contained in a variable and transforming it to a form in which that information can be used.
+
+<span style="font-size:150%; color:blue">①Recoding </span>
+
+The following table displays a few variables from the `houses` data table we downloaded earlier. It describes 1,728 houses for sale in Saratoga, NY. The full table includes additional variables such as `living_area`, `price`, `bedrooms`, and `bathrooms`. The data on house systems such as `sewer_type` and `heat_type` have been stored as numbers, even though they are really categorical.
+```{r, echo=FALSE, message=FALSE}
+library(tidyverse)
+simpletable <- tribble(
+  ~fuel, ~heat, ~sewer, ~construction,
+  3, 4, 2, 0,
+  2, 3, 2, 0,
+  2, 3, 3, 0,
+  2, 2, 2, 0,
+  2, 2, 3, 1
+)
+```
+Four of the variables from the tables giving features of the Saratoga houses stored as integer codes. Each case is a different house.
+
+There is nothing fundamentally wrong with using integers to encode, say, fuel type, though it may be confusing to interpret results. What is worse is that the numbers imply a meaningful order to the categories when there is none.
+
+To translate the integers to a more informative coding, you first have to find out what the various codes mean. Often, this information comes from the codebook, but sometimes you will need to contact the person who collected the data. Once you know the translation, you can use spreadsheet software (or the `tribble()` function) to enter them into a data table, like this one for the houses:
+```{r}
+translations <- mdsr_url %>%
+  paste0("house_codes.csv") %>%
+  read_csv()
+translations %>% head(5)
+```
+
+Translations describes the codes in a format that makes it easy to add new code values as the need arises. The same information can also be presented a wide format as in the following Table.
+
+```{r}
+codes <- translations %>%
+  pivot_wider(
+    names_from = system_type, 
+    values_from = meaning, 
+    values_fill = "invalid"  )
+codes
+```
+In codes, there is a column for each system type that translates the integer code to a meaningful term. In cases where the integer has no corresponding term, `invalid` has been entered. This provides a quick way to distinguish between incorrect entries and missing entries. To carry out the translation, we join each variable, one at a time, to the data table of interest. Note how the `by` value changes for each variable:
+```{r}
+houses <- houses %>%
+  left_join(
+    codes %>% select(code, fuel_type), 
+    by = c(fuel = "code")
+  ) %>%
+  left_join(
+    codes %>% select(code, heat_type), 
+    by = c(heat = "code")
+  ) %>%
+  left_join(
+    codes %>% select(code, sewer_type), 
+    by = c(sewer = "code")
+  )
+houses
+```
+
+<span style="font-size:150%; color:blue">②From strings to numbers<span>*
+
+You have seen two major types of variables: quantitative and categorical. You are used to using quoted character strings as the levels of categorical variables, and numbers for quantitative variables.
+
+Often, you will encounter data tables that have variables whose meaning is numeric but whose representation is a character string. This can occur when one or more cases is given a non-numeric value, e.g., *not available*.
+
+The *parse_number()* function will translate character strings with numerical content into numbers. The *parse_character()* function goes the other way. For example, in the *ordway_birds* data, the *Month*, *Day*, and *Year* variables are all being stored as character vectors, even though their evident meaning is numeric.
+```{r}
+library(mdsr)
+ordway_birds %>% 
+  select(Timestamp, Year, Month, Day) %>% 
+  glimpse()
+```
+We can convert the strings to numbers using `mutate()` and `parse_number()`. Note how the empty strings (i.e., `""`) in those fields are automatically converted into `NA`’s, since they cannot be converted into valid numbers.
+```{r}
+library(readr)
+ordway_birds <- ordway_birds %>%
+  mutate(
+    Month = parse_number(Month), 
+    Year = parse_number(Year),
+    Day = parse_number(Day)
+  )
+ordway_birds %>% 
+  select(Timestamp, Year, Month, Day) %>% 
+  glimpse()
+```
+<span style="font-size:150%; color:blue">③Dates with `lubridate` package </span> 
+
+Dates are often recorded as character strings (e.g., `29 October 2014`). Among other important properties, dates have a natural order. When you plot values such as `16 December 2015` and `29 October 2016`, you expect the December date to come after the October date, even though this is not true alphabetically of the string itself.
+
+When plotting a value that is numeric, you expect the axis to be marked with a few round numbers. A plot from 0 to 100 might have ticks at 0, 20, 40, 60, 100. It is similar for dates. When you are plotting dates within one month, you expect the day of the month to be shown on the axis. If you are plotting a range of several years, it would be appropriate to show only the years on the axis.
+
+When you are given dates stored as a character vector, it is usually necessary to convert them to a data type designed specifically for dates. For instance, in the `ordway_birds` data, the Timestamp variable refers to the time the data were transcribed from the original lab notebook to the computer file. This variable is currently stored as a `character` string, but we can translate it into a more usable date format using functions from the **lubridate** package. 
+
+These dates are written in a format showing `month/day/year hour:minute:second`. The `mdy_hms()` function from the **lubridate** package converts strings in this format to a date. Note that the data type of the `When` variable is now `dttm`.
+
+```{r}
+library(lubridate)
+birds <- ordway_birds %>% 
+  mutate(When = mdy_hms(Timestamp)) %>% 
+  select(Timestamp, Year, Month, Day, When, DataEntryPerson)
+birds %>% 
+  glimpse()
+```
+With the `When` variable now recorded as a timestamp, we can create a sensible plot showing when each of the transcribers completed their work, as in the following Figure.
+```{r}
+birds %>% 
+  ggplot(aes(x = When, y = DataEntryPerson)) + 
+  geom_point(alpha = 0.1, position = "jitter") 
+```
+
+Many of the same operations that apply to numbers can be used on dates. For example, the range of dates that each transcriber worked can be calculated as a difference in times (i.e., an `interval()`), and shown in the following Table. This makes it clear that Jolani worked on the project for nearly a year (329 days), while Abby’s first transcription was also her last.
+
+```{r}
+bird_summary <- birds %>% 
+  group_by(DataEntryPerson) %>% 
+  summarize(
+    start = first(When), 
+    finish = last(When)
+  ) %>%
+  mutate(duration = interval(start, finish) / ddays(1))
+```
+
+There are many similar **lubridate** functions for converting strings in different formats into dates, e.g., `ymd()`, `dmy()`, and so on. There are also functions like `hour()`, `yday()`, etc. for extracting certain pieces of variables encoded as dates.
+
+Internally, R uses several different classes to represent dates and times. For timestamps (also referred to as datetimes), these classes are `POSIXct` and `POSIXlt`. For most purposes, you can treat these as being the same, but internally, they are stored differently. A `POSIXct` object is stored as the number of seconds since the UNIX epoch (1970-01-01), whereas `POSIXlt` objects are stored as a list of year, month, day, etc., character strings.
+```{r}
+library(lubridate)
+#now(); today()
+#class(now()); class(today())
+#class(as.POSIXlt(now()))
+#as.Date(now())
+example <- c("2021-04-29 06:00:00", "2021-12-31 12:00:00")
+str(example)
+converted <- ymd_hms(example)
+converted;str(converted)
+converted[2] - converted[1]
+```
+<span style="font-size:150%; color:blue">④Factors or strings?</span>
+A *factor* is a special data type used to represent categorical data. Factors store categorical data efficiently and provide a means to put the categorical levels in whatever order is desired. Unfortunately, factors also make cleaning data more confusing. The problem is that it is easy to mistake a factor for a character string, and they have different properties when it comes to converting a numeric or date form. This is especially problematic when using the character processing techniques in the next session, Text as data.
+
+By default, `readr::read_csv()` will interpret character strings as strings and not as factors. Other functions, such as `read.csv()` prior to version 4.0 of **R**, convert character strings into factors by default. Cleaning such data often requires converting them back to a character format using `parse_character()`. Failing to do this when needed can result in completely erroneous results without any warning. The **forcats** package was written to improve support for wrangling factor variables.
+
+For this reason, the data tables used in this book have been stored with categorical or text data in character format. Be aware that data provided by other packages do not necessarily follow this convention. If you get mysterious results when working with such data, consider the possibility that you are working with factors rather than character vectors. Recall that `summary()`, `glimpse()`, and `str()` will all reveal the data types of each variable in a data frame.
+
+
+
+## 6. Last part of DW: Text as data
+So far, we have focused primarily on numerical data, but there is a whole field of research that focuses on unstructured textual data. Fields such as *natural language processing* and *computational linguistics* work directly with text documents to extract meaning algorithmically. Not surprisingly, the fact that computers are really good at storing text, but not very good at understanding it, whereas humans are really good at understanding text, but not very good at storing it, is a fundamental challenge.
+
+Processing text data requires an additional set of wrangling skills. In this chapter, we will introduce how text can be ingested, how *corpora* (collections of text documents) can be created, sentiments extracted, patterns described, and how *[regular expression](https://en.wikipedia.org/wiki/Regular_expression)* can be used to automate searches that would otherwise be excruciatingly labor-intensive.
+
+### 6-1. Regular expressions using Macbeth
+As noted previously, working with textual data requires new tools. In this section, we introduce the powerful grammar of regular expressions.
+
+<span style="font-size:150%; color:blue">①Parsing the text of the Scottish play </span>
+*Project Gutenberg* contains the full-text for all of William Shakespeare’s plays. In this example, we will use text mining techniques to explore *The Tragedy of Macbeth*. The text can be downloaded directly from Project Gutenberg. Alternatively, the `Macbeth_raw` object is also included in the mdsr package.
+```{r}
+library(tidyverse)
+library(mdsr)
+#install.packages("RCurl")
+macbeth_url <- "http://www.gutenberg.org/cache/epub/1129/pg1129.txt"
+Macbeth_raw <- RCurl::getURL(macbeth_url)
+data(Macbeth_raw)
+#Macbeth_raw
+#str(Macbeth_raw); length(Macbeth_raw)
+
+```
+Note that `Macbeth_raw` is a `single` string of text (i.e., a character vector of length 1) that contains the entire play. In order to work with this, we want to split this single string into a vector of strings using the `str_split()` function from the **stringr**. To do this, we just have to specify the end-of-line character(s), which in this case are: `\r\n`.
+
+```{r}
+macbeth <- Macbeth_raw %>%
+  str_split("\r\n") %>%
+  pluck(1) # str_split returns a list: we only want the first element
+length(macbeth)
+
+#str(Macbeth_raw %>% str_split("\r\n"))
+```
+Now let’s examine the text. Note that each speaking line begins with two spaces, followed by the speaker’s name in capital letters.
+```{r}
+macbeth[300:310]
+```
+The power of text mining comes from quantifying ideas embedded in the text. For example, how many times does the character Macbeth speak in the play? Think about this question for a moment. If you were holding a physical copy of the play, how would you compute this number? Would you flip through the book and mark down each speaking line on a separate piece of paper? Is your algorithm scalable? What if you had to do it for *all* characters in the play, and not just Macbeth? What if you had to do it for *all* 37 of Shakespeare’s plays? What if you had to do it for all plays written in English?
+
+Naturally, a computer cannot read the play and figure this out, but we can find all instances of Macbeth’s speaking lines by cleverly counting patterns in the text.
+
+```{r}
+macbeth_lines <- macbeth %>%
+  str_subset("  MACBETH")
+length(macbeth_lines)
+head(macbeth_lines)
+```
+The str_subset() function works using a needle in a haystack paradigm, wherein the first argument is the character vector in which you want to find patterns (i.e., the haystack) and the second argument is the **regular expression** (or pattern) you want to find (i.e., the needle). Alternatively, str_which() returns the indices of the haystack in which the needles were found. By changing the needle, we find different results:
+
+```{r}
+macbeth %>%
+  str_subset("  MACDUFF") %>%
+  length()
+macbeth %>%  str_which("  MACBETH")
+```
+The `str_detect()` function—which we use in the example in the next section—uses the same syntax but returns a logical vector as long as the haystack. Thus, while the length of the vector returned by `str_subset()` is the number of matches, the length of the vector returned by `str_detect()` is always the same as the length of the haystack vector.
+```{r}
+macbeth %>%
+  str_subset("  MACBETH") %>% head() # %>% length()
+# macbeth %>%  str_detect("  MACBETH") %>%
+#   length()
+```
+
+To extract the piece of each matching line that actually matched, use the `str_extract()` function from the **stringr** package.
+```{r}
+pattern <- "  MACBETH"
+macbeth %>%
+  str_subset(pattern) %>%
+  str_extract(pattern) %>% 
+  head()
+```
+Above, we use a literal string (e.g., “`MACBETH`”) as our needle to find exact matches in our haystack. This is the simplest type of pattern for which we could have searched, but the needle that `str_extract()` searches for can be any regular expression.
+
+Regular expression syntax is very powerful and as a result, can become very complicated. Still, regular expressions are a grammar, so that learning a few basic concepts will allow you to build more efficient searches.
+
+- **Metacharacters**: `.` is a *[metacharacter]("https://en.wikipedia.org/wiki/Metacharacter")* that matches any character. Note that if you want to search for the literal value of a metacharacter (e.g., a period), you have to escape it with a backslash. To use the pattern in **R**, two backslashes are needed. Note the difference in the results below.
+```{r}
+macbeth %>%
+  str_subset("MAC.") %>%
+  head()
+```
+
+```{r}
+macbeth %>%
+  str_subset("MACBETH\\.") %>%
+  head()
+```
+
+- **Character sets**:  Use brackets to define sets of characters to match. This pattern will match any lines that contain `MAC` followed by any capital letter other than `A`. It will match `MACBETH` but not `MACALESTER`.
+```{r}
+macbeth %>%
+  str_subset("MAC[B-Z]") %>%
+  head()
+```
+
+- **Alternation**: To search for a few specific alternatives, use the `|` wrapped in parentheses. This pattern will match any lines that contain either `MACB` or `MACD`.
+```{r}
+macbeth %>%
+  str_subset("MAC(B|D)") %>%
+  head()
+```
+
+- **Anchors**: Use `^` to anchor a pattern to the beginning of a piece of text, and `$` to anchor it to the end.
+```{r}
+macbeth %>%
+  str_subset("^  MAC[B-Z]") %>%
+  head();
+macbeth %>%
+  str_subset("more.$")
+macbeth %>%
+  str_subset("more\\.$")
+```
+- **Repetitions**: We can also specify the number of times that we want certain patterns to occur: `?` indicates zero or one time, `*` indicates zero or more times, and `+` indicates one or more times. This quantification is applied to the previous element in the pattern—in this case, a space.
+```{r}
+macbeth %>%
+  str_subset("^ ?MAC[B-Z]") %>%
+  head()
+```
+```{r}
+macbeth %>%
+  str_subset("^ *MAC[B-Z]") %>%
+  head()
+```
+```{r}
+macbeth %>%
+  str_subset("^ +MAC[B-Z]") %>%
+  head()
+```
+Combining these basic rules can automate incredibly powerful and sophisticated searches and are an increasingly necessary tool in every data scientist’s toolbox.
+Note: Regular expressions are a powerful and commonly-used tool. They are implemented in many programming languages. Developing a working understanding of regular expressions will pay off in text wrangling.
+
+<span style="font-size:150%; color:blue">②Life and death in Macbeth </span>
+
+Can we use these techniques to analyze the speaking patterns in Macbeth? Are there things we can learn about the play simply by noting who speaks when? Four of the major characters in Macbeth are the titular character, his wife Lady Macbeth, his friend Banquo, and Duncan, the King of Scotland.
+
+We might learn something about the play by knowing when each character speaks as a function of the line number in the play. We can retrieve this information using `str_detect()`.
+```{r}
+macbeth_chars <- tribble(
+  ~name, ~regexp,
+  "Macbeth", "  MACBETH\\.",
+  "Lady Macbeth", "  LADY MACBETH\\.",
+  "Banquo", "  BANQUO\\.",
+  "Duncan", "  DUNCAN\\.",
+) %>%
+  mutate(speaks = map(regexp, str_detect, string = macbeth))
+```
+
+However, for plotting purposes we will want to convert these `logical` vectors into `numeric` vectors, and tidy up the data. Since there is unwanted text at the beginning and the end of the play text, we will also restrict our analysis to the actual contents of the play (which occurs from line 218 to line 3172).
+```{r}
+speaker_freq <- macbeth_chars %>%
+  unnest(cols = speaks) %>%
+  mutate(
+    line = rep(1:length(macbeth), 4),
+    speaks = as.numeric(speaks)
+  ) %>%
+  filter(line > 218 & line < 3172)
+glimpse(speaker_freq)
+#speaker_freq$speaks
+```
+Before we create the plot, we will gather some helpful contextual information about when each Act begins.
+```{r}
+acts <- tibble(
+  line = str_which(macbeth, "^ACT [I|V]+"), 
+  line_text = str_subset(macbeth, "^ACT [I|V]+"),
+  labels = str_extract(line_text, "^ACT [I|V]+")
+)
+acts
+```
+Finally, Figure 19.1(Following plot) illustrates how King Duncan of Scotland is killed early in Act II (never to speak again), with Banquo to follow in Act III. Soon afterwards in Act IV, Lady Macbeth—overcome by guilt over the role she played in Duncan’s murder—kills herself. The play and Act V conclude with a battle in which Macbeth is killed.
+
+```{r}
+ggplot(data = speaker_freq, aes(x = line, y = speaks)) + 
+  geom_smooth(
+    aes(color = name), method = "loess", 
+    se = FALSE, span = 0.4
+  ) + 
+  geom_vline(
+    data = acts, 
+    aes(xintercept = line), 
+    color = "darkgray", lty = 3
+  ) + 
+  geom_text(
+    data = acts, 
+    aes(y = 0.085, label = labels), 
+    hjust = "left", color = "darkgray"
+  ) + 
+  ylim(c(0, NA)) + 
+  xlab("Line Number") +
+  ylab("Proportion of Speeches") + 
+  scale_color_brewer(palette = "Set2")
+```
