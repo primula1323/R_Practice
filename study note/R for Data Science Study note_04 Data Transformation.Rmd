@@ -1,0 +1,133 @@
+---
+title: "R for Data Science Study note_04 Data Transformation"
+author: "Na SeungChan"
+date: "2023-07-19"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+monofont: UnShinmun
+mainfont: UnDotum
+---
+
+```{r setup, include=FALSE}
+library('tidyverse')
+library('nycflights13')
+
+```
+
+# Data Transformation
+
+
+## dplyr basics
+
+
+* Pick observations by their values (filter()).
+* Reorder the rows (arrange()).
+* Pick variables by their names (select()).
+* Create new variables with functions of existing variables (mutate()).
+* Collapse many values down to a single summary (summarise()).
+
+These can all be used in conjunction with group_by() which changes the scope of each function from operating on the entire dataset to operating on it group-by-group. These six functions provide the verbs for a language of data manipulation.
+
+
+Together these properties make it easy to chain together multiple simple steps to achieve a complex result. Let’s dive in and see how these verbs work.
+
+```{r}
+fly <- nycflights13::flights
+```
+
+
+
+
+## Use `filter()` to filter rows
+
+filter() allows you to subset observations based on their values.
+
+
+```{r}
+filter(flights, month == 1, day == 1)
+```
+
+you can use comparision operator(==, !=, >, <, >=, <=) and logical operator(|, &, xor(,)) with filter. + you can use `%in%`
+
+
+### Exercises
+
+```{r}
+#Q1
+fly %>% filter(arr_delay >= 120)
+fly %>% filter(dest == 'IAH'|dest == 'HOU')
+fly %>% filter(carrier %in% c('UA', 'DL', 'AA'))
+```
+
+
+```{r}
+#Q2
+fly %>% filter(between(arr_delay, 50, 100))#includes 50 and 100. 
+```
+
+
+```{r}
+fly %>%
+  filter(is.na(dep_time)) %>%
+  count()
+```
+
+
+## Arrange rows with `arrange()`
+
+```{r}
+fly %>%
+  arrange(year)
+fly %>%
+  arrange(year, month)#default : ascending
+fly %>%
+  arrange(desc(year), desc(month))#NAs are always in the end.
+```
+
+
+### Exercises
+
+```{r}
+#Q1
+arrange(fly, desc(is.na(dep_time)))
+```
+
+
+
+```{r}
+#Q2
+fly %>%
+  arrange(desc(dep_delay))
+```
+
+
+
+## Select Columns with `select()`
+
+
+```{r}
+select(fly, year, month, day)
+select(fly, -(year:day))
+select(fly, !(year:day))
+select(fly, year:day)
+select(fly, c(1,3))
+select(fly, seq(1,5,2))
+```
+
+
+```{r}
+select(fly, starts_with('arr'))
+select(fly, ends_with('delay'))
+select(fly, contains('dep'))
+select(fly, matches('._time'))#see strings
+```
+
+
+
+
+
+
+

@@ -1,0 +1,843 @@
+---
+title: "R for Data Science Study note_03 Wrangle"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+monofont: UnShinmun
+mainfont: UnDotum
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+library('nycflights13')
+library('hms')
+library('haven')#for reading spss, sas files.
+```
+
+
+# 05 Data Transformation
+
+
+## dplyr basics
+
+
+* Pick observations by their values (filter()).
+* Reorder the rows (arrange()).
+* Pick variables by their names (select()).
+* Create new variables with functions of existing variables (mutate()).
+* Collapse many values down to a single summary (summarise()).
+
+These can all be used in conjunction with group_by() which changes the scope of each function from operating on the entire dataset to operating on it group-by-group. These six functions provide the verbs for a language of data manipulation.
+
+
+Together these properties make it easy to chain together multiple simple steps to achieve a complex result. Let’s dive in and see how these verbs work.
+
+```{r}
+fly <- nycflights13::flights
+```
+
+
+
+
+## Use `filter()` to filter rows
+
+filter() allows you to subset observations based on their values.
+
+
+```{r}
+filter(flights, month == 1, day == 1)
+```
+
+you can use comparision operator(==, !=, >, <, >=, <=) and logical operator(|, &, xor(,)) with filter. + you can use `%in%`
+
+
+### Exercises
+
+```{r}
+#Q1
+fly %>% filter(arr_delay >= 120)
+fly %>% filter(dest == 'IAH'|dest == 'HOU')
+fly %>% filter(carrier %in% c('UA', 'DL', 'AA'))
+```
+
+
+```{r}
+#Q2
+fly %>% filter(between(arr_delay, 50, 100))#includes 50 and 100. 
+```
+
+
+```{r}
+fly %>%
+  filter(is.na(dep_time)) %>%
+  count()
+```
+
+
+## Arrange rows with `arrange()`
+
+```{r}
+fly %>%
+  arrange(year)
+fly %>%
+  arrange(year, month)#default : ascending
+fly %>%
+  arrange(desc(year), desc(month))#NAs are always in the end.
+```
+
+
+### Exercises
+
+```{r}
+#Q1
+arrange(fly, desc(is.na(dep_time)))
+```
+
+
+
+```{r}
+#Q2
+fly %>%
+  arrange(desc(dep_delay))
+```
+
+
+
+## Select Columns with `select()`
+
+
+```{r}
+select(fly, year, month, day)
+select(fly, -(year:day))
+select(fly, !(year:day))
+select(fly, year:day)
+select(fly, c(1,3))
+select(fly, seq(1,5,2))
+```
+
+
+```{r}
+select(fly, starts_with('arr'))
+select(fly, ends_with('delay'))
+select(fly, contains('dep'))
+select(fly, matches('._time'))#see strings
+select(fly, num_range('x', 1:3))
+```
+
+
+If you want to rename the selected variable, you have two options. First is using `select()` function : but, you should use option `everything()` not to drop other variables.
+
+
+```{r}
+select(flights, time_hour, air_time)
+select(flights, time_hour, air_time, everything())
+rename(flights, tail_num = tailnum)
+```
+
+
+### Exercises
+
+```{r}
+#Q2
+select(fly, air_time, air_time)
+select(fly, arr_time, arr_time, everything())#this is possible!
+```
+
+
+```{r}
+vars <- c("year", "month", "day", "dep_delay", "arr_delay")
+select(fly, one_of(vars))
+```
+
+```{r}
+select(flights, contains("TIME"))
+select(flights, contains("TIME", ignore.case = FALSE))
+```
+
+
+## `mutate()`
+
+mutate() always adds new columns at the end of your dataset so we’ll start by creating a narrower dataset so we can see the new variables.
+
+
+```{r}
+flights_sml <- select(flights, 
+  year:day, 
+  ends_with("delay"), 
+  distance, 
+  air_time
+)
+mutate(flights_sml,
+  gain = dep_delay - arr_delay,
+  speed = distance / air_time * 60,
+  gs = gain * speed #you can refer to variables you've just created
+)
+transmute(flights_sml, #only keep created columns.
+  gain = dep_delay - arr_delay,
+  speed = distance / air_time * 60,
+  gs = gain * speed 
+)
+```
+
+
+```{r}
+lag(1:10)
+lead(1:10)
+cumsum(1:10)
+cummean(1:10)
+cumprod(1:10)#cumulative product
+cummin(1:10)
+cummax(1:10)
+min_rank(c(1, 2, 2, NA, 3, 4))
+min_rank(desc(c(1, 2, 2, NA, 3, 4)))
+row_number(c(1, 2, 2, NA, 3, 4))
+dense_rank(c(1, 2, 2, NA, 3, 4))
+percent_rank(c(1, 2, 2, NA, 3, 4))
+cume_dist(c(1, 2, 2, NA, 3, 4))
+```
+
+```{r}
+#Q1
+fly %>%
+  mutate(dep_time_hour = dep_time%/%100, dep_time_minute = dep_time%%100) %>%
+  mutate(dep_time_mutated = dep_time_hour * 60 + dep_time_minute) %>%
+  select(carrier:dest, year:day, dep_time_mutated)
+```
+
+
+```{r}
+#Q2 다시 풀어 볼 것!
+fly %>%
+  mutate(diff = arr_time - dep_time) %>%
+  select(air_time, diff)
+```
+
+
+
+```{r}
+#Q3 다시풀기!
+#dep_time = sched_dep_time + dep_delay.
+
+fly %>%
+  mutate(dt = sched_dep_time + dep_delay) %>%
+  select(dt, dep_time) %>%
+  filter(dt != dep_time) %>%
+  ggplot() +
+  geom_point(mapping = aes(x = dt, y = dep_time)) + 
+  coord_fixed()
+```
+
+
+```{r}
+#Q4
+fly %>%
+  mutate(dr = min_rank(desc(dep_delay))) %>%
+  arrange(dr)
+fly %>%
+  mutate(dr = min_rank(desc(dep_delay))) %>%
+  slice(1:10)
+fly %>%
+  mutate(dr = min_rank(dep_delay)) %>%
+  top_n(10, dr)
+```
+
+
+
+## Grouped summaries with `Summarise()`
+
+It collapses a data frame to a single row:
+
+```{r}
+summarise(flights, delay = mean(dep_delay, na.rm = TRUE))
+```
+
+
+`summarise()` is not terribly useful unless we pair it with `group_by()`. This changes the unit of analysis from the complete dataset to individual groups. Then, when you use the dplyr verbs on a grouped data frame they’ll be automatically applied “by group”. 
+
+
+```{r}
+by_day <- group_by(flights, year, month, day)
+summarise(by_day, delay = mean(dep_delay, na.rm = TRUE))
+```
+
+overall, `summarise()` applys a function to a row or grouped rows and collapse it as a single value(s).
+
+
+
+Summarise can be used in EDA, also.
+
+
+```{r}
+by_dest <- group_by(flights, dest)
+delay <- summarise(by_dest, count = n(), dist = mean(distance, na.rm = TRUE),
+  delay = mean(arr_delay, na.rm = TRUE)) %>% 
+  filter(count > 20, dest != "HNL")
+
+ggplot(data = delay, mapping = aes(x = dist, y = delay)) +
+  geom_point(mapping = aes(size = count), alpha = 1/3) +
+  geom_smooth(se = FALSE)
+```
+
+
+some useful functions combined with summarise() : min(), max(), quantile(,0.25), first, nth(x,2), last(), sum(!is.na()), mean(), n(), median(), sd(), IQR(), mad() - Compute the median absolute deviation.
+
+sum(!is.na()) counts the sum of non-NAs.
+n() counts the number of it.
+n_distinct() counts distinct value of it.
+
+```{r}
+not_cancelled <- flights %>% 
+  filter(!is.na(dep_delay), !is.na(arr_delay))
+
+delays <- not_cancelled %>% 
+  group_by(tailnum) %>% 
+  summarise(
+    delay = mean(arr_delay)
+  )
+ggplot(data = delays, mapping = aes(x = delay)) + 
+  geom_freqpoly(binwidth = 10)
+
+delays <- not_cancelled %>% 
+  group_by(tailnum) %>% 
+  summarise(
+    delay = mean(arr_delay, na.rm = TRUE),
+    n = n()
+  )
+ggplot(data = delays, mapping = aes(x = n, y = delay)) + 
+  geom_point(alpha = 1/10)
+
+delays %>% 
+  filter(n > 25) %>% 
+  ggplot(mapping = aes(x = n, y = delay)) + 
+    geom_point(alpha = 1/10)
+
+not_cancelled %>% 
+  group_by(year, month, day) %>% 
+  summarise(
+    avg_delay1 = median(arr_delay),
+    avg_delay2 = mean(arr_delay[arr_delay > 0]) # the average positive delay
+  )
+```
+
+
+We can see that as n increase, the variance of sample mean decrease.
+
+
+```{r}
+library('Lahman') #only for data of baseball players
+bat <- as_tibble(Lahman::Batting)
+```
+
+```{r}
+bats <- bat %>%
+  group_by(playerID) %>%
+  summarise(
+    ba = sum(H, na.rm = TRUE) / sum(AB, na.rm = TRUE),
+    ab = sum(AB, na.rm = TRUE)
+  )
+
+bats %>%
+  filter(ab > 100) %>%
+  ggplot(mapping = aes(x = ab, y = ba)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+```
+
+Be careful when progressively rolling up summaries: it’s OK for sums and counts, but you need to think about weighting means and variances, and it’s not possible to do it exactly for rank-based statistics like the median. In other words, the sum of groupwise sums is the overall sum, but the median of groupwise medians is not the overall median.
+
+You can ungroup by `ungroup()`.
+
+
+### Exercises
+
+```{r}
+#Q1 Brainstorm at least 5 different ways to assess the typical delay characteristics of a group of flights.
+not_cancelled %>%
+  group_by(tailnum) %>%
+  summarise(mean(arr_delay))
+```
+
+```{r}
+#Q2
+not_cancelled %>% count(dest)
+not_cancelled %>% count(tailnum, wt = distance)
+not_cancelled %>% group_by(tailnum) %>% summarise(sum(distance, na.rm = TRUE))
+```
+
+```{r}
+#Q4
+fly2 <- fly %>%
+  group_by(year, month, day) %>%
+  summarise(n_cancelled = sum(is.na(arr_delay)), prop_cancelled = n_cancelled/n(), avg_delay = mean(arr_delay, na.rm = TRUE))
+fly2
+
+ggplot(fly2, mapping = aes(x = prop_cancelled, y = avg_delay)) +
+  geom_point() + 
+  geom_smooth(se = FALSE)
+
+fly3 <- fly2 %>% filter(prop_cancelled < 0.4) 
+ggplot(fly3, mapping = aes(x = prop_cancelled, y = avg_delay)) +
+  geom_point() + 
+  geom_smooth(se = FALSE)
+```
+
+```{r}
+#Q5
+not_cancelled %>%
+  group_by(carrier) %>%
+  summarise(avg_delay = mean(arr_delay, na.rm = TRUE)) %>%
+  arrange(avg_delay)
+
+## 다시풀기
+fly %>%
+  filter(!is.na(arr_delay)) %>%
+  group_by(carrier, origin, dest) %>%
+  summarise(sud = sum(arr_delay), n_f = n()) %>%
+  group_by(origin, dest) %>% # you can use iterated group_by() without ungroup()
+  mutate(tad = sum(sud), tf = sum(n_f))
+```
+
+
+
+# 10 Tibbles
+
+
+Tibble : alternative form for data.frame.
+You can get tibble by making df as tibble.
+
+
+## Creating tibbles
+
+
+```{r}
+ti <- as_tibble(iris)
+tj <- tibble(x = 1:5, y = 1, z = x^2 + y)
+```
+
+
+You can make the **non-syntactic names** also.
+
+```{r}
+tk <- tibble(`a` = 1:5, `b` = 1, `x` = 2)
+tk
+tl <- tibble(
+  `:)` = "smile", 
+  ` ` = "space",
+  `2000` = "number"
+)
+tl
+```
+
+
+tribble is transposed tibble. This makes it possible to lay out small amounts of data in easy to read form.
+
+```{r}
+tribble(
+  ~x, ~y, ~z,
+  #--|--|----
+  "a", 2, 3.6,
+  "b", 1, 8.5
+)
+```
+
+
+## Tibbles vs. Data.frame
+
+* Printing
+
+Tibbles have a refined print method that shows only the first 10 rows, and all the columns that fit on screen.
+
+```{r}
+a = lubridate::now() + runif(1e3) * 86400
+b = lubridate::today() + runif(1e3) * 30
+c = 1:1e3
+d = runif(1e3)
+e = sample(letters, 1e3, replace = TRUE)
+data.frame(a, b, c, d, e)           
+tibble(
+  a = lubridate::now() + runif(1e3) * 86400,
+  b = lubridate::today() + runif(1e3) * 30,
+  c = 1:1e3,
+  d = runif(1e3),
+  e = sample(letters, 1e3, replace = TRUE)
+)
+```
+
+
+* subsetting
+
+If you want to pull out a single variable, you need some new tools, \$ and [[. [[ can extract by name or position; \$ only extracts by name but is a little less typing.
+
+
+
+```{r}
+df <- tibble(
+  x = runif(5),
+  y = rnorm(5)
+)
+# Extract by name
+df$x
+df[["x"]]
+
+# Extract by position
+df[[1]]
+
+# Pipe
+df %>% .$x
+df %>% .[["x"]]
+df %>% .[[1]]
+```
+
+
+
+## Work with Older codes
+
+you can make tibble back into data.frame :
+
+```{r}
+as.data.frame(df)
+```
+
+
+With base R data frames, [ sometimes returns a data frame, and sometimes returns a vector. With tibbles, [ always returns another tibble.
+
+```{r}
+df <- iris
+df
+ti
+class(df[1])
+class(ti[1])
+```
+
+
+## Exercises
+
+
+```{r}
+#Q1
+mtcars
+class(mtcars)
+mticars <- as_tibble(mtcars)
+mticars
+class(mticars)
+```
+
+
+```{r}
+df <- data.frame(abc = 1, xyz = "a")
+df$x
+df[, "xyz"]
+df[, c("abc", "xyz")]
+```
+
+
+
+```{r}
+#Q4
+annoying <- tibble(
+  `1` = 1:10,
+  `2` = `1` * 2 + rnorm(length(`1`))
+)
+```
+
+```{r}
+annoying[1]
+ggplot(data = annoying) +
+  geom_point(mapping = aes(x = `1`, y = `2`))
+annoying_new <- annoying %>%
+  mutate(`3` = `2`/`1`)
+annoying_new
+```
+
+
+
+# 11 Data Import
+
+## read_csv()
+
+We will use the `readr` package in `tidyverse`
+
+read_csv(), read_csv2() : to read comma-seperated-files. read_csv2 is for ;, which is used in countries where , is used for decimal point.
+
+read_fwf() reads fixed width files. You can specify fields either by their widths with fwf_widths() or their position with fwf_positions().
+
+read_table() reads a common variation of fixed width files where columns are separated by white space.
+
+* we can use the 'skip' option to skip some headlines. or `comment = '#'` option to drop all lines starting with `#`
+
+* if you use the `col_names = FALSE`, it will label them sequentially from X1 to Xn. also, we can map seq. of colnames by `col_names = c(1,2,3,3)`
+
+* you can use the `na = '.'` opt. to represent the na-corresponding character.
+
+```{r}
+#Q1
+
+#read_delim(file, delim = '|')
+```
+
+
+```{r}
+#Q4
+
+q11 <- "x,y\n1,'a,b'"
+q12 <- read_csv(x, quote = "'")
+#q13 <- read_csv(x, quote = '\'') #why does not work?
+```
+
+
+## string parsing
+
+parse_*() functions take a character vector and return a more specialised vector like a logical, integer, or date:
+
+
+```{r}
+str(parse_logical(c("TRUE", "FALSE", "NA")))
+str(parse_integer(c("1", "2", "3")))
+str(parse_date(c("2010-01-01", "1979-10-14")))
+```
+
+str represents the **str**ucture of an R object. not a *str*ing
+
+```{r}
+parse_integer(c("1", "231", ".", "456"), na = ".")
+```
+
+```{r}
+x <- parse_integer(c("123", "345", "abc", "123.45"))
+x
+problems(x)
+```
+
+
+### Numbers
+
+* People write numbers differently in different parts of the world. For example, some countries use . in between the integer and fractional parts of a real number, while others use ,. `parse_double()` can be a solution to this problem
+
+```{r}
+parse_double("1.23")
+#> [1] 1.23
+parse_double("1,23", locale = locale(decimal_mark = ","))
+#> [1] 1.23
+```
+
+
+* Numbers are often surrounded by other characters that provide some context, like “$1000” or “10%”. parse_number makes this problem solved.
+
+```{r}
+parse_number("$100")
+parse_number("20%")
+parse_number("It cost $123.45")
+```
+
+
+
+* Numbers often contain “grouping” characters to make them easier to read, like “1,000,000”, and these grouping characters vary around the world.
+
+
+```{r}
+# Used in America
+parse_number("$123,456,789")
+
+# Used in many parts of Europe
+parse_number("123.456.789", locale = locale(grouping_mark = "."))
+
+# Used in Switzerland
+parse_number("123'456'789", locale = locale(grouping_mark = "'"))
+```
+
+
+* readr’s default locale is US-centric
+
+ 
+### Strings
+
+the story of 'encoding' : readr uses the UTF-8 encoding everywhere.
+
+```{r}
+charToRaw("Hadley")
+x1 <- "El Ni\xf1o was particularly bad this year"
+x2 <- "\x82\xb1\x82\xf1\x82\xc9\x82\xbf\x82\xcd"
+x1
+x2
+parse_character(x1, locale = locale(encoding = "Latin1"))
+parse_character(x2, locale = locale(encoding = "Shift-JIS"))
+```
+
+how can I get the encoding? data documentation or use function `guess_encoding()`
+
+
+### Factors
+
+
+R uses factors to represent categorical variables that have a known set of possible values. Give parse_factor() a vector of known levels to generate a warning whenever an unexpected value is present
+
+```{r}
+fruit <- c("apple", "banana")
+parse_factor(c("apple", "banana", "bananana"), levels = fruit)
+```
+
+
+
+### DDTT - Date, Date and Times, Time
+
+
+You pick between three parsers depending on whether you want a date (the number of days since 1970-01-01), a date-time (the number of seconds since midnight 1970-01-01), or a time (the number of seconds since midnight). When called without any additional arguments
+
+
+* `parse_datetime()` expects an ISO8601 date-time.
+
+```{r}
+parse_datetime("2010-10-01T2010")
+parse_datetime("20101010")
+```
+
+
+
+* `parse_date()` expects a four digit year, a - or /, the month, a - or /, then the day
+
+```{r}
+parse_date("2010-10-01")
+```
+
+
+
+* `parse_time()` expects the hour, :, minutes, optionally : and seconds, and an optional am/pm specifier. - from the package `hms`.
+
+```{r}
+library(hms)
+parse_time("01:10 am")
+parse_time("20:10:01")
+```
+
+
+
+* If you cannot find the parse does not fit your data, you can directly supply my format.
+
+
+**Year**
+
+*    %Y (4 digits). 
+
+*    %y (2 digits); 00-69 -> 2000-2069, 70-99 -> 1970-1999. 
+
+
+**Month**
+
+*    %m (2 digits). 
+
+*    %b (abbreviated name, like “Jan”). 
+
+*    %B (full name, “January”). 
+
+
+**Day**
+
+*    %d (2 digits). 
+
+*    %e (optional leading space). 
+
+
+**Time**
+
+*    %H 0-23 hour. 
+
+*    %I 0-12, must be used with %p. 
+
+*    %p AM/PM indicator. 
+
+*    %M minutes. 
+
+*    %S integer seconds. 
+
+*    %OS real seconds. 
+
+*    %Z Time zone (as name, e.g. America/Chicago). Beware of abbreviations: if you’re American, note that “EST” is a Canadian time zone that does not have daylight savings time. It is not Eastern Standard Time! We’ll come back to this time zones. 
+
+*    %z (as offset from UTC, e.g. +0800). 
+
+
+**Non-digits**
+
+*    %. skips one non-digit character. 
+
+*    %* skips any number of non-digits. 
+
+
+```{r}
+parse_date("01/02/15", "%m/%d/%y")
+parse_date("01/02/15", "%d/%m/%y")
+parse_date("01/02/15", "%y/%m/%d")
+parse_date("1 janvier 2015", "%d %B %Y", locale = locale("fr"))#If you should work with %b or %B in other languages except for ENG.
+```
+
+
+
+## Data Parsing
+
+* How does readr automatically guess the type of each column?
+* How to override the default specification?
+
+
+### Strategy
+
+readr strategy : read first 1000 columns. You can emulate the process with `guess_parser()` function.
+
+```{r}
+guess_parser("2010-10-01")
+guess_parser("15:01")
+guess_parser(c("TRUE", "FALSE"))
+guess_parser(c("1", "5", "9"))
+guess_parser(c("12,352,561"))
+str(parse_guess("2010-10-10"))
+```
+
+
+A good strategy is to work column by column until there are no problems remaining. Here we can see that there are a lot of parsing problems with the y column. If we look at the last few rows, you’ll see that they’re dates stored in a character vector:
+
+In the previous example, we just got unlucky: if we look at just one more row than the default, we can correctly parse in one shot:
+
+Sometimes it’s easier to diagnose problems if you just read in all the columns as character vectors:
+
+
+
+## Writing files
+
+write_csv(dfname, filename)
+write_tsv()
+
+```{r}
+
+```
+
+
+cf) read_spss() from haven reads SPSS, SAS, STATA
+    readxl from .xls and .xlsx
+    
+
+
+
+# 12 : Tidy Data
+
+One dataset, the tidy dataset, will be much easier to work with inside the tidyverse. There are three interrelated rules which make a dataset tidy:
+
+*    Each variable must have its own column.
+*    Each observation must have its own row.
+*    Each value must have its own cell.
+
+
+
+
+```{r}
+
+```
+
+
+
+
+
+

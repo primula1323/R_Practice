@@ -1,0 +1,427 @@
+---
+title: "Statistics Lab Exercise Note"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont: UnDotum
+monofont: UnShinmun
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# Class 1
+
+## Setup
+
+scalar -> vector -> matrix
+c(), matrix()
+
+```{r}
+a <- matrix(c(1,2,3,4), nrow = 4, ncol = 4, byrow = F)
+rm(a)
+```
+
+
+```{r}
+```
+read.csv
+read.table
+header = T
+
+```{r}
+gen1 <- factor(c('F','F','M','M','F'))
+gen2 <- c('F','F','M','M','F')
+score <- c(44, 55, 66, 77, 55)
+t1 <- cbind(gen1, score)
+t2 <- cbind(gen2, score)
+t1
+t2
+```
+
+
+
+
+# Class 2
+
+## visualization - univariate
+
+```{r}
+hist(score)
+hist(score, breaks = 10)
+hist(score, freq = F)#비율
+hist(score, breaks = c(5,15,25,35,45,55,65,75,85))
+hist(score, breaks = seq(5, 105, by = 2))
+plot(score, type = 'h')
+```
+
+```{r}
+stem(score)
+boxplot(score)
+boxplot(score, horizontal = T)
+boxplot(score~gen1)#bivarate
+```
+
+```{r}
+table(gen1)
+table(score)
+fivenum(score)
+summary(score)
+range(score)
+IQR(score)
+mean(score)
+var(score)
+sd(score)
+median(score)
+sum(score)
+min(score)
+max(score)
+round(sd(score))
+round(sd(score), digits = 2)
+rank(score)
+```
+
+
+## Visualization - bivariate
+
+```{r}
+plot(score, gen1, main = 'nyan', sub = 'nnyan')
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', type = 'l')
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', type = 'c')
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', type = 'n')
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', type = 'b')
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', cex = 0.5)
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', cex = 2)
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', cex = 2, pch = 16)
+```
+
+
+# Basic Commands
+
+## Vector
+
+```{r}
+aaa <- c(1,2,3)
+bbb <- seq(1,3,by=1)
+ccc <- bbb[1]
+ddd <- seq(1,3,len=3)
+aaa
+bbb
+ccc
+ddd
+```
+
+```{r}
+eee <- 1:5
+eee
+fff <- rep(c(1,2), 2)
+fff
+ggg <- rep(c(1,2), 2, each = 2)
+ggg
+hhh <- rep(c(1,2), each = 3)
+hhh
+```
+
+```{r}
+rm(aaa, bbb, ccc, ddd, eee, fff, ggg, hhh)
+```
+
+
+## Functions
+
+```{r}
+aaa <- -2.2
+abs(aaa)
+bbb <- 4
+sqrt(bbb)
+ccc <- round(aaa)
+ccc
+ddd <- round(-2.5)
+ddd
+eee <- exp(1)
+log(eee)
+fff <- choose(12,3)
+fff
+ggg <- factorial(12)
+ggg
+hhh <- paste(aaa, '=', bbb)
+hhh
+hhh[1]
+rm(aaa, bbb, ccc, ddd, eee, fff, ggg, hhh)
+```
+
+```{r}
+sample(1:100, 20, replace = T)
+sample(1:100, 20, replace = F)
+#sample(x, n, replace = F/T) : x에서 size n vector를 추출.
+```
+
+
+## Operator
+
+```{r}
+22%%4
+22%/%4
+22 == 22%/%4 * 4 + 22%%4
+22 == 22|FALSE
+22 == 22&FALSE
+```
+
+
+## Iteration
+
+```{r}
+for (i in 1:10) {
+  print(i)
+}
+i<-1
+while (i<=10) {
+  print(i)
+  i <- i+1
+}
+rm(i)
+i <- 1
+if(i<=10){print(i)}else{print('end')}
+rm(i)
+```
+
+
+
+# Calling Function
+
+```{r}
+a <- exp
+a(2)
+a(log(a(1)))
+rm(a)
+```
+
+## normal
+
+
+```{r}
+dnorm(0, mean = 0, sd = 1)#point 0에서의 함숫값
+pnorm(0, mean = 0, sd = 1)#point 0에서의 분포함숫값
+qnorm(0.5, mean = 0, sd = 1)#z_0.5가 되는 x값
+pnorm(1, lower.tail = F)#클 확률 구함
+qnorm(0.1587, lower.tail = F)#큰 값이 0.3413인 point
+```
+
+```{r}
+a <- seq(-3, 3, by = 0.1)
+b <- dnorm(a)
+plot(a, b, type = 'l', xlab = 'x', ylab = 'y', main = 'probablilty density function of standard normal distribution')
+```
+
+
+
+## Binomial distribution
+
+
+```{r}
+dbinom(5, 10, 0.5)
+pbinom(5, 10, 0.5)
+qbinom(0.5, 10, 0.5)
+```
+
+
+
+## multi graph
+
+```{r}
+par(mfrow = c(2,3))
+for (i in 1:6) {
+  a <- seq(-3, 3, by = 0.1)
+  b <- dnorm(a)
+  c <- seq(-3, 3, by = 1)
+  d <- dnorm(c)
+  plot(a, b, pch = 16, cex = 0.2)
+  lines(c, d)
+}
+dev.off
+```
+
+
+##q-q plot
+
+
+```{r}
+e <- sample(a, 11, replace = F)
+qqnorm(e, pch = 16, cex = 0.2)
+qqline(e)#lines와 마찬가지로 이미 존재하는 그래프 위에 그리는 것.
+```
+
+# Estimation
+
+```{r}
+score2 <- c()
+for (i in 1:5) {
+  score2[i] <- score[i] + sample(-10:10, 1)
+}
+t.test(score, mu = 40, alternative = "greater")#일표본
+t.test(score, score2, paired = T)#대응비교(쌍체비교)
+```
+
+
+```{r}
+#tapply(x, group, func) : x에 group별로 func 적용한 vector 뱉어내는 함수
+var.test(score, score2)#등분산성 F-test
+t.test(score, score2, var.equal = T)#등분산성 이표본 t-test
+```
+
+# Discrete Data Analysis
+
+##동질성검정, 독립성검정 - chi-squared test
+
+```{r}
+#chisq.test(x) where x : 분할표표
+```
+
+동질성검정 : 특정 행위 여부에 따라 각 집단의 특성이 달라지는가?
+독립성검정 : 특정 두 행위 간 서로 연관이 있는가?
+
+
+# Cor analysis, regression analysis
+
+## Correlation Analysis
+
+```{r}
+cor.test(score, score2)
+cor.test(score, score2, alternative = 'greater')
+```
+
+## Simple Linear Regression Analysis
+
+
+### Significance of regression
+
+
+```{r}
+lmscore <- lm(score2 ~ score)
+lmscore
+summary(lmscore)
+coef(lmscore)[1]
+anova(lmscore)
+```
+
+
+### Residual Analysis
+
+
+```{r}
+par(mfrow = c(2,2))
+plot(lmscore)
+```
+
+```{r}
+dev.off()
+```
+
+
+
+## Multiple Linear Regression Analysis
+
+
+```{r}
+score3 <- c()
+for (i in 1:5) {
+  score3[i] <- score[i] + sample(-20:0, 1)
+}
+```
+
+
+```{r}
+scores <- cbind(score, score2, score3)
+cor(scores)
+plot(scores)
+lmscore23 <- lm(score ~ score2 + score3)
+```
+
+
+
+# ANOVA(ANalysis Of VAriance)
+
+
+## 일원배치법 
+
+```{r}
+gender <- factor(c('M','K','F','K','M','F','M','M','F','K','F','F'))
+scorek <- c()
+for (i in 1:12) {
+  scorek[i] <- sample(0:100, 1)
+}
+onewaydata <- cbind(gender, scorek)
+onewaydata
+```
+
+
+```{r}
+temp_fit <- lm(scorek~gender)
+summary(temp_fit)
+anova(temp_fit)
+```
+
+
+## 이원배치법 : 반복 X
+
+```{r}
+gender1 <- factor(c('M','K','F','K','M','F','M','M','F','K','F','F'))
+gender2 <- factor(c('a', 'b', 'b', 'b', 'a', 'c', 'c', 'd', 'd', 'a', 'd', 'c'))
+scorek <- c()
+for (i in 1:12) {
+  scorek[i] <- sample(0:100, 1)
+}
+twowaydata <- cbind(gender1, gender2, scorek)
+twowaydata
+twowaydata <- as.data.frame(twowaydata)
+```
+
+
+```{r}
+two_one_lm <- lm(scorek ~ gender1 + gender2, data = twowaydata)
+anova(two_one_lm)
+```
+
+
+## 이원배치법 : 반복 O
+
+
+```{r}
+gender3 <- factor(c('M','K','F','K','M','F','M','M','F','K','F','F'))
+gender4 <- factor(c('a', 'b', 'b', 'b', 'a', 'c', 'c', 'd', 'd', 'a', 'd', 'c'))
+scorel <- c()
+for (i in 1:60) {
+  scorel[i] <- sample(0:100, 1)
+}
+twowaydata2 <- cbind(gender3, gender4, scorel)
+twowaydata2
+twowaydata2 <- as.data.frame(twowaydata2)
+```
+
+
+```{r}
+two_rep_lm <- lm(scorel ~ gender3 + gender4, data = twowaydata2)
+anova(two_rep_lm)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

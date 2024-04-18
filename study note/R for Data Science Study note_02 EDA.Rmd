@@ -1,0 +1,233 @@
+---
+title: "R for Data Science Study note_EDA"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+monofont: UnShinmun
+mainfont: UnDotum
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+```
+
+# EDA
+
+The goal of EDA : Develop an understanding of my data.
+
+making 'quality' = exploring a quantity of data
+
+Two key question :
+
+* What type of variation occurs within my variables?
+    *
+* What type of covariation occurs between my variables?
+    *
+
+
+## Variation 
+
+def : the tendency of the values of a variable to change from m to m
+
+
+```{r}
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = cut))
+ggplot(data = diamonds) + 
+  geom_histogram(mapping = aes(x = carat), binwidth = 0.5)
+ggplot(data = filter(diamonds, carat < 3)) +
+  geom_histogram(mapping = aes(x = carat), binwidth = 0.5)
+ggplot(data = filter(diamonds, carat < 3)) +
+  geom_freqpoly(mapping = aes(x = carat, color = cut), binwidth = 0.1)
+```
+
+Now we can recognize the variation. Then what should you look for in your plots? And what type of follow-up questions should you ask?
+
+
+### Typical Values
+
+the story of 'bar(discrete)/hist(continuous)'
+
+  * Which value are the most common? Why?
+  * Which values are rere? Why? Does that match my expectation?
+  * Can I see any unusual patterns? What might explain them?
+
+
+### Unusual Values
+
+the story of 'outliers'
+
+
+```{r}
+ggplot(diamonds) + 
+  geom_histogram(mapping = aes(x = y), binwidth = 0.5)
+ggplot(diamonds) + 
+  geom_histogram(mapping = aes(x = y), binwidth = 0.5) +
+  coord_cartesian(ylim = c(0, 50))
+```
+
+
+### Missing Values
+
+If you’ve encountered unusual values in your dataset, and simply want to move on to the rest of your analysis, you have two options.
+
+
+1. Drop the entire row with the strange values:
+
+```{r}
+diamonds2 <- diamonds %>% 
+  filter(between(y, 3, 20))
+```
+
+
+2. Replace the unusual values with missing values.
+
+```{r}
+diamonds2 <- diamonds %>% 
+  mutate(y = ifelse(y < 3 | y > 20, NA, y))
+#diamonds3 <- diamonds %>%
+#  mutate(w = case_when(y < 3|y > 20 ~ NA, TRUE ~ y)) why dose not work? 'NA' makes r think I want logical vector.
+diamonds4 <- diamonds %>%
+  mutate(w = case_when(y < 3|y > 20 ~ NA_real_, TRUE ~ y))
+```
+
+
+
+### Exercises
+
+```{r}
+#Q1
+ggplot(diamonds) +
+  geom_histogram(mapping = aes(x = x))
+ggplot(diamonds) +
+  geom_histogram(mapping = aes(x = y))
+ggplot(diamonds) +
+  geom_histogram(mapping = aes(x = z))
+ggplot(data = filter(diamonds, x<9, y<10, z<10)) +
+  geom_point(mapping = aes(x = x, y = y, color = z)) +
+  coord_fixed()
+```
+
+
+```{r}
+ggplot(data = diamonds) +
+  geom_histogram(mapping = aes(x = price), binwidth = 1)
+```
+
+
+```{r}
+diamonds3 <- diamonds %>%
+  filter(carat == 0.99|carat == 1)
+ggplot(diamonds3) + 
+  geom_bar(mapping = aes(x = carat))
+```
+
+
+
+```{r}
+ggplot(diamonds) + 
+  geom_point(mapping = aes(x = carat, y = price)) +
+  coord_cartesian(xlim = c(0, 5), ylim = c(0, 20000))
+```
+
+
+
+## Covariation
+
+### Categorical vs. Continuous
+
+```{r}
+ggplot(data = diamonds, mapping = aes(x = price)) + 
+  geom_freqpoly(mapping = aes(colour = cut), binwidth = 500)
+ggplot(data = diamonds, mapping = aes(x = price, y = ..density..)) + 
+  geom_freqpoly(mapping = aes(colour = cut), binwidth = 500)
+```
+
+
+```{r}
+ggplot(data = diamonds, mapping = aes(x = cut, y = price)) +
+  geom_boxplot()
+```
+
+```{r}
+ggplot(data = mpg) +
+  geom_boxplot(mapping = aes(x = reorder(class, hwy, FUN = median), y = hwy))
+#reordering
+```
+
+
+```{r}
+#Q1
+a <- nycflights13::flights
+ggplot(a) +
+  geom_boxplot(mapping = aes(x = dep_time, group = is.na(dep_time)))
+```
+
+
+### 2 categorical
+
+YOU need to count!
+
+```{r}
+ggplot(data = diamonds) +
+  geom_count(mapping = aes(x = cut, y = color))
+diamonds %>% 
+  count(color, cut) %>%  
+  ggplot(mapping = aes(x = color, y = cut)) +
+    geom_tile(mapping = aes(fill = n))
+```
+
+
+### 2 Continuous
+
+```{r}
+ggplot(data = diamonds) +
+  geom_point(mapping = aes(x = carat, y = price))#scatterplot becomes less useful
+ggplot(data = diamonds) + 
+  geom_point(mapping = aes(x = carat, y = price), alpha = 1 / 100)
+ggplot(data = filter(diamonds, carat < 3)) +
+  geom_bin2d(mapping = aes(x = carat, y = price))
+ggplot(data = filter(diamonds, carat < 3), mapping = aes(x = carat, y = price)) + 
+  geom_boxplot(mapping = aes(group = cut_width(carat, 0.1)))
+ggplot(data = filter(diamonds, carat < 3), mapping = aes(x = carat, y = price)) + 
+  geom_boxplot(mapping = aes(group = cut_number(carat, 20)))
+```
+
+
+
+
+## Patterns and models
+
+If you spot a pattern, ask yourself:
+* Could this pattern be due to coincidence (i.e. random chance)?
+* How can you describe the relationship implied by the pattern?
+* How strong is the relationship implied by the pattern?
+* What other variables might affect the relationship?
+* Does the relationship change if you look at individual subgroups of the data?
+
+If two variables covary, you can use the values of one variable to make better predictions about the values of the second. If the covariation is due to a causal relationship (a special case), then you can use the value of one variable to control the value of the second.
+
+modelr is the strongest way to deal with patterns.
+
+```{r}
+library(modelr)
+
+mod <- lm(log(price) ~ log(carat), data = diamonds)
+
+diamonds2 <- diamonds %>% 
+  add_residuals(mod) %>% 
+  mutate(resid = exp(resid))
+
+ggplot(data = diamonds2) + 
+  geom_point(mapping = aes(x = carat, y = resid))
+```
+
+
+
+

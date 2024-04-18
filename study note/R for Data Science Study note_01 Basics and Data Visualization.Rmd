@@ -1,0 +1,744 @@
+---
+title: "R for Data Science Study note_01 Basics and Data Visualization"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont: UnDotum
+monofont: UnShinmun
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+
+
+# R Basic I
+
+# Lecture 1 : Starting R
+
+Tidyverse is basic package for basic data wrangling.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+library('maps')
+library('ggrepel')
+```
+
+
+These are for basic datasets.
+
+```{r}
+#install.packages(c('nycflights13', 'gapminder', 'Lahman'))
+library('nycflights13')
+library('gapminder')
+library('Lahman')
+```
+
+Also, It is highly recommended to make 'restore .Rdata on exist' : never
+
+
+## Working directory
+
+1. You should use mac-style directory.
+2. DO NOT USE the absolute path.
+
+
+```{r name}
+getwd()
+#read.csv write_csv ggsave
+```
+
+
+## R Markdown
+
+*italic* \*italic\*
+**bold** \*\*bold\*\*
+superscript^2^
+subscript~2~
+
+\*
+\*
+    \*
+    
+\<link\>
+\[\]\(link\)
+
+`r getwd()`와 같이 inline code 가능. 
+
+
+
+
+
+
+
+
+
+
+# Lecture 2 : Data Visualization
+
+We will use ggplot2. ggplot2 is included in `tidyverse` package.
+Also, dataset `mpg` is included in `ggplot2`
+
+
+```{r}
+df_mpg <- ggplot2::mpg
+view(df_mpg)
+```
+
+## Scatterplot
+
+```{r}
+ggplot(data = df_mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy))
+```
+
+
+### Exercises
+
+```{r}
+#Q1
+ggplot(data = mpg)
+```
+
+It makes blank tablet for graphs.
+
+```{r}
+#Q2
+nrow(df_mpg)
+ncol(df_mpg)
+```
+
+
+```{r}
+#Q3
+#?mpg
+```
+
+drv is the type of drive train, where f = front-wheel drive, r = rear wheel drive, 4 = 4wd
+
+
+```{r}
+#Q4
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = hwy, y = cyl))
+```
+
+
+```{r}
+#Q5
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = class, y = drv))
+table(df_mpg$class, df_mpg$drv)
+```
+
+
+some data are collapse into one point. for example, the number of 'compact w/ 4' data is 12, but in the scatterplot, only one point shows it. the scatterplot only shows whether there is a observation in the point.
+
+
+## Aesthic mappings
+
+```{r}
+par(mfrow = c(2,2))
+ggplot(data = df_mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = class))
+ggplot(data = df_mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, size = class))
+ggplot(data = df_mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, alpha = class))
+ggplot(data = df_mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, shape = class))
+```
+
+## Aesthetic : manual setting
+
+```{r}
+ggplot(data = df_mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy), color = 'blue')
+ggplot(data = df_mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, color = 'blue')) # 차이점은? Q1.
+```
+
+### Exercises
+
+
+```{r}
+#Q2
+#?mpg
+```
+
+manufacturer, model, year, cyl, trans, drv, fl, class
+
+
+```{r}
+#Q3
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy, color = cty))
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy, size = cty))
+#ggplot(data = df_mpg) +
+#  geom_point(mapping = aes(x = displ, y = hwy, shape = cty)) shape cannnot be mapped to continuous variables.
+```
+
+
+```{r}
+#Q4
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = displ, y = drv, color = drv))
+```
+
+
+```{r}
+#Q5
+ggplot(data = df_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point(shape = 21, color = 'black', fill = 'white', stroke = 5)
+ggplot(data = df_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point(shape = 21, color = 'black', fill = 'white', stroke = 2)
+```
+
+
+
+
+
+
+```{r}
+#Q6
+ggplot(data = df_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point(mapping = aes(color = displ < 5))
+ggplot(data = df_mpg, mapping = aes(x = cty, y = hwy)) +
+  geom_point(mapping = aes(color = displ < 5))
+```
+
+
+
+
+## Facets
+
+```{r}
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_wrap(~class, nrow = 2)
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_wrap(~class)#facet_wrap은 1개 data
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_grid(drv~class)#facet_grid는 2개 이상 data
+```
+
+
+### Exercises
+
+```{r}
+#Q1
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = cty, y = hwy)) +
+  facet_wrap(~displ)
+```
+
+```{r}
+#Q2
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = cyl, y = drv))
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) + 
+  facet_grid(drv ~ cyl)
+```
+
+```{r}
+#Q3
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_grid(drv ~ .)
+
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_grid(. ~ cyl)
+```
+
+
+```{r}
+#Q4
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) + 
+  facet_wrap(~ class, nrow = 2)
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy, color = class))
+```
+
+
+
+
+## Geometric Objects
+
+```{r}
+ggplot(data = df_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy))
+ggplot(data = df_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, group = drv))
+ggplot(data = df_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, linetype = drv))
+ggplot(data = df_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, color = drv))
+```
+
+```{r}
+ggplot(data = df_mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy, color = drv)) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, color = drv))
+```
+
+
+
+```{r}
+ggplot(data = df_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, color = drv), show.legend = FALSE)
+ggplot(data = df_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, color = drv))
+
+```
+
+
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point(mapping = aes(color = class)) + 
+  geom_smooth()
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point(mapping = aes(color = class)) + 
+  geom_smooth(se = F)
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point(mapping = aes(color = class)) + 
+  geom_smooth(data = filter(mpg, class == 'subcompact'))#locally restricted data
+```
+
+
+
+### Exercises
+
+```{r}
+#Q1 
+ggplot(data = mpg) +
+  geom_line(mapping = aes(x = displ, y = hwy))
+ggplot(data = mpg) +
+  geom_boxplot(mapping = aes(x = displ, y = hwy))
+ggplot(data = mpg) +
+  geom_boxplot(mapping = aes(group = displ, y = hwy))#연속형은 group해서
+ggplot(data = mpg) +
+  geom_boxplot(mapping = aes(x = drv, y = hwy))
+ggplot(data = mpg) +
+  geom_bar(mapping = aes(y = hwy))
+ggplot(data = mpg) +
+  geom_bar(mapping = aes(x = hwy))
+ggplot(data = mpg) +
+  geom_histogram(mapping = aes(x = hwy))
+ggplot(data = mpg) +
+  geom_area(mapping = aes(x = displ, y = hwy))
+```
+
+```{r}
+#Q2
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy, color = drv)) + 
+  geom_point() + 
+  geom_smooth(se = FALSE)
+```
+
+```{r}
+#Q3, Q4 is already solved. Q5
+ggplot(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point() + 
+  geom_smooth()
+
+ggplot() + 
+  geom_point(data = mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_smooth(data = mpg, mapping = aes(x = displ, y = hwy))
+```
+
+
+```{r}
+#Q6
+ggplot(data = df_mpg, mapping = aes(x = displ, y = hwy), show.legend = F) +
+  geom_point() + 
+  geom_smooth(se = F)
+ggplot(data = df_mpg, mapping = aes(x = displ, y = hwy), show.legend = F) + 
+  geom_point() + 
+  geom_smooth(mapping = aes(group = drv), se = F)
+ggplot(data = df_mpg, mapping = aes(x = displ, y = hwy, color = drv)) + 
+  geom_point() +
+  geom_smooth(se = F)
+ggplot(data = df_mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point(mapping = aes(color = drv)) +
+  geom_smooth(se = F)
+ggplot(data = df_mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point(mapping = aes(color = drv)) +
+  geom_smooth(mapping = aes(linetype = drv), se = F)
+ggplot(data = df_mpg, mapping = aes(x = displ, y = hwy)) + 
+  geom_point(mapping = aes(fill = drv), shape = 21, stroke = 2, color = 'white') +
+  geom_smooth(mapping = aes(linetype = drv), se = F)
+```
+
+## Statistical Transformations
+
+In this chapter, we will use the `diamonds` dataset in `ggplot2`
+
+```{r}
+dia <- diamonds
+```
+
+```{r}
+ggplot(dia) +
+  geom_bar(mapping = aes(x = cut))
+```
+
+'count' : not in the dataest
+
+Some graph uses only the variables in the dataset, but others make new variables not in the dataset.
+
+geom_point uses only the variables in the dataset ; geom_bar make `count` variable.
+
+
+![geom_bar_outline](visualization-stat-bar.png)
+
+```{r}
+ggplot(dia) +
+  geom_bar(mapping = aes(x = cut))
+ggplot(dia) +
+  stat_count(mapping = aes(x = cut))
+```
+
+
+
+override with different transformed variables.
+
+```{r}
+demo <- tribble(
+  ~cut,         ~freq,
+  "Fair",       1610,
+  "Good",       4906,
+  "Very Good",  12082,
+  "Premium",    13791,
+  "Ideal",      21551
+)
+
+ggplot(data = demo) +
+  geom_bar(mapping = aes(x = cut, y = freq), stat = "identity")
+
+
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, y = stat(prop), group = 1))
+
+ggplot(data = diamonds) + 
+  stat_summary(
+    mapping = aes(x = cut, y = depth),
+    fun.min = min,
+    fun.max = max,
+    fun = median
+  )
+
+```
+
+
+### Exercises
+
+```{r}
+# Q1
+ggplot(dia) +
+  stat_summary(mapping = aes(x = cut, y = depth), fun.min = min, fun.max = max, fun = median)
+```
+
+```{r}
+#Q2
+ggplot(dia) + 
+  geom_col(mapping = aes(x = cut, y = depth))
+```
+
+geom_bar sums all the data with 'fair' as 1. geom_col sums all the data as is.
+
+```{r}
+#q4
+ggplot(dia) +
+  stat_smooth(mapping = aes(x = table, y = depth))
+```
+
+
+
+```{r}
+#q5
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, y = after_stat(prop)))
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = color, y = after_stat(prop)))
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = color, y = after_stat(prop), group = 1))
+```
+
+
+
+
+## Position Adfustment
+
+position = "identity" will place each object exactly where it falls in the context of the graph. This is not very useful for bars, because it overlaps them. To see that overlapping we either need to make the bars slightly transparent by setting alpha to a small value, or completely transparent by setting fill = NA.
+
+
+```{r}
+ggplot(data = diamonds, mapping = aes(x = cut, fill = clarity)) + 
+  geom_bar(alpha = 1/5, position = "identity")
+ggplot(data = diamonds, mapping = aes(x = cut, colour = clarity)) + 
+  geom_bar(fill = NA, position = "identity")
+```
+
+
+position = "fill" works like stacking, but makes each set of stacked bars the same height. This makes it easier to compare proportions across groups.
+
+
+```{r}
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = clarity), position = "fill")
+```
+
+
+position = "dodge" places overlapping objects directly beside one another. This makes it easier to compare individual values.
+
+```{r}
+ggplot(data = diamonds) + 
+  geom_bar(mapping = aes(x = cut, fill = clarity), position = "dodge")
+```
+
+
+
+You can avoid this gridding by setting the position adjustment to “jitter”. position = "jitter" adds a small amount of random noise to each point. This spreads the points out because no two points are likely to receive the same amount of random noise.
+
+```{r}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy))
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy), position = "jitter")
+ggplot(data = mpg) + 
+  geom_jitter(mapping = aes(x = displ, y = hwy))
+```
+
+
+### Exercises
+
+```{r}
+#Q1
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + 
+  geom_point()
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + 
+  geom_point(mapping = aes(color = drv))
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + 
+  geom_jitter(mapping = aes(color = drv))
+```
+
+
+
+```{r}
+#Q2
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + 
+  geom_jitter(mapping = aes(color = drv), width = 2)
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) + 
+  geom_jitter(mapping = aes(color = drv), width = 10000)
+```
+
+
+
+## Coordinate System
+
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = class, y = hwy)) + 
+  geom_boxplot()
+ggplot(data = mpg, mapping = aes(x = class, y = hwy)) + 
+  geom_boxplot() +
+  coord_flip()
+```
+
+```{r}
+library('maps')
+```
+
+
+
+```{r}
+nz <- map_data("nz")
+
+ggplot(nz, aes(long, lat, group = group)) +
+  geom_polygon(fill = "white", colour = "black")
+
+ggplot(nz, aes(long, lat, group = group)) +
+  geom_polygon(fill = "white", colour = "black") +
+  coord_quickmap()
+```
+
+(This is not covered in this note)
+
+
+```{r}
+bar <- ggplot(data = diamonds) + 
+  geom_bar(
+    mapping = aes(x = cut, fill = cut), 
+    show.legend = FALSE,
+    width = 1
+  ) + 
+  theme(aspect.ratio = 1) +
+  labs(x = NULL, y = NULL)
+
+bar + coord_flip()
+bar + coord_polar()
+```
+
+```{r}
+#Q1
+ggplot(data = dia) +
+  geom_bar(mapping = aes(x = cut, fill = carat))
+ggplot(data = dia) +
+  geom_bar(mapping = aes(x = cut, fill = carat)) +
+  coord_polar()
+#sol
+ggplot(data = dia) +
+  geom_bar(mapping = aes(x = factor(1), fill = carat))
+ggplot(data = dia) +
+  geom_bar(mapping = aes(x = factor(1), fill = carat)) +
+  coord_polar()
+```
+
+
+```{r}
+#Q2
+ggplot(data = dia) +
+  geom_bar(mapping = aes(x = cut, fill = color)) +
+  labs(title = 'cut vs. color', subtitle = 'from dataset diamonds in ggplot2', caption = 'nyan')
+ggplot(data = dia) +
+  geom_bar(mapping = aes(x = cut, fill = color)) +
+  xlab('nyann') #xlab covers the variable name.
+```
+
+
+```{r}
+#Q4
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) +
+  geom_point() + 
+  geom_abline() +
+  coord_fixed()
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) +
+  geom_point() + 
+  geom_abline() #ratio of x to y is distorted.
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) +
+  geom_point()#geom_abline draws a line y=x
+```
+
+
+
+## Label
+
+```{r}
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(colour = class)) +
+  geom_smooth(se = FALSE) +
+  labs(
+    x = "Engine displacement (L)",
+    y = "Highway fuel economy (mpg)",
+    colour = "Car type"
+  )
+```
+
+
+## Annotations
+
+```{r}
+best_in_class <- mpg %>%
+  group_by(class) %>%
+  filter(row_number(desc(hwy)) == 1)
+
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(colour = class)) +
+  geom_text(aes(label = model), data = best_in_class)
+
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(colour = class)) +
+  geom_label(aes(label = model), data = best_in_class, nudge_y = 2, alpha = 0.5)
+```
+
+If you use the ggrepel package, you can get
+
+
+```{r}
+library('ggrepel')
+ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(colour = class)) +
+  geom_point(size = 3, shape = 1, data = best_in_class) +
+  ggrepel::geom_label_repel(aes(label = model), data = best_in_class)
+```
+
+
+
+
+## Plotmath
+
+```{r}
+df <- tibble(
+  x = runif(10),
+  y = runif(10)
+)
+ggplot(df, aes(x, y)) +
+  geom_point() +
+  labs(
+    x = quote(sum(x[i] ^ 2, i == 1, n)),
+    y = quote(alpha + beta + frac(delta, theta))
+  )
+```
+
+
+## Scale
+
+```{r}
+df <- tibble(
+  x = runif(10),
+  y = runif(10)
+)
+ggplot(df, aes(x, y)) +
+  geom_point() +
+  labs(
+    x = quote(sum(x[i] ^ 2, i == 1, n)),
+    y = quote(alpha + beta + frac(delta, theta))
+  )
+```
+
+```{r}
+presidential %>%
+  mutate(id = 33 + row_number()) %>%
+  ggplot(aes(start, id, colour = party)) +
+    geom_point() +
+    geom_segment(aes(xend = end, yend = id)) +
+    scale_colour_manual(values = c(Republican = "red", Democratic = "blue"))
+```
+
+
+
+
+
+
+## Zoomings and Themes
+
+```{r}
+ggplot(mpg, mapping = aes(displ, hwy)) +
+  geom_point(aes(color = class)) +
+  geom_smooth() +
+  coord_cartesian(xlim = c(5, 7), ylim = c(10, 30))
+
+mpg %>%
+  filter(displ >= 5, displ <= 7, hwy >= 10, hwy <= 30) %>% #dataset을 filter해서 사용
+  ggplot(aes(displ, hwy)) +
+  geom_point(aes(color = class)) +
+  geom_smooth()
+```
+
+
+## Saving Plot
+
+
+```{r}
+ggplot(mpg, aes(displ, hwy)) + geom_point()
+ggsave("my-plot.pdf")
+#> Saving 7 x 4.32 in image
+```
+

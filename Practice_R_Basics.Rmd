@@ -1,0 +1,124 @@
+---
+title: "Practice_R_20220927"
+author: "Na SeungChan"
+date: "2022-09-27"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(mdsr)
+```
+
+## R Basics
+
+```{r as a calculator}
+3+2 #addition
+3-2 #subtraction
+3*2 #multiplication
+3/2 #division
+3^2 #power cf) python : 3**2
+5%%2 #Remainder
+5%/%2 #quotient
+0/0 #illegal arithmetic yields a NaN(Not a Number)
+class(NaN)
+```
+
+
+```{r variables, functions}
+aaa <- c(1,2) #preferred.
+bbb = c(1,2) #avoid.
+c(1,2) -> ccc #weird.
+
+#form of function_name(arg1 = val1, arg2 = val2) : 
+
+x <- seq(1,10,length.out = 5)
+
+
+```
+
+## Working Directory
+
+```{r}
+getwd()
+
+aaa <- read.csv("candidate-votes-by-voting-place-4.csv", header = F)
+aaa
+```
+
+
+## R markdown Basics
+
+### texts
+
+\*italic\* or \_italic\_
+*italic*
+_italic_
+
+\*\*bold\*\* or \_\_bold\_\_
+**bold**
+__bold__
+
+\`code\`
+`code`
+
+superscript \^super\^
+super^2^
+
+subscript \~sub\~
+sub~2~
+
+\#1st level header
+\#\#2nd level header
+
+* Bulleted list item 1
+* item 2
+  *item 2a(by \\t)
+
+1. Numbered list item 1
+0. item 2. the number is not important.
+
+link : 
+<domain>
+[text](domain)
+![imgname](./imgfilename)
+
+Tables
+
+| 1st Header | 2nd Header | 3rd Header | 4st Header |
+| : -------- | ---------- | ----------:|:--------- : |
+| con        | con | con | con |
+| con        | con | con | con |
+
+
+inline code chunk : `r 1+1` will embed the result of R code directly into the test. 
+
+for example, `r 4+5` is that.
+
+
+
+
+
+### code chunk
+
+eval = FALSE : prevents code from being evaluated
+include = FALSE : runs the code, but don't show the code or results
+echo = FALSE : only prevents the code chunk from appearing
+error = True : cause the render to continue even if codes returns an error.
+cache = TRUE : will save the output of the chunk on disc. note that even if the '.csv' files in code change, the code chunk does not rerun.
+message = FALSE/warning = FALSE : do not show the messages or warnings.
+results = "hide" or fig.show = "hide"
+
+knitr::opts_chunk$set(echo = TRUE) - global options
+
+
+
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
