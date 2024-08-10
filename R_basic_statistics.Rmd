@@ -1,0 +1,246 @@
+---
+title: "R_basic_statistics"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+# Week2 : 
+
+```{r}
+gender <- factor(c(rep('M', 8), rep('F', 10)))
+score <- c(98, 90, 96, 54, 43, 87, 88, 90, 94, 92, 81, 79, 85, 91, 79, 88, 89, 83)
+
+```
+
+
+## 일변량 자료의 요약
+
+### 그래프프
+
+```{r : histogram}
+hist(score)
+hist(score, freq = F)
+hist(score, breaks = 20)
+```
+
+
+```{r : stem}
+stem(score)
+stem(score, scale = 0.1)
+```
+
+
+
+```{r : boxplot}
+boxplot(score)
+boxplot(score ~ gender)
+boxplot(score ~ gender, horizontal = TRUE)
+``````
+
+
+### 수치통계량
+
+```{r}
+
+```
+
+
+
+
+## 다변량 자료의 요약
+
+```{r}
+math <- c(66, 64, 48, 46, 78, 60, 90, 50, 66, 70)
+phy <- c(70, 68, 46, 48, 84, 64, 92, 52, 68, 72)
+```
+
+
+### 그래프
+
+```{r}
+plot(math, phy, main = 'tile', sub = 'nyan', xlim = c(45, 85), ylab = 'se', type = 'b')
+```
+
+
+
+
+# week 3
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
