@@ -79,27 +79,104 @@ plot(math, phy, main = 'tile', sub = 'nyan', xlim = c(45, 85), ylab = 'se', type
 
 # week 3
 
+## vector
+
+```{r}
+x <- c(1, 2, 3, 5, 6)
+x[1]
+x <- 5:10
+x
+x <- rep(c(1, 2, 3), each = 5)
+x
+x <- rep(c(1, 2, 4), 5)
+x
+x <- seq(1, 10, 2)
+x
+x <- seq(1, 10, length = 5)
+x
+rm(x)
+x
+x <- sample(c(1, 2, 4), size = 5, replace = TRUE)
+x
+```
+
+## Matrix
+
+```{r}
+x1 <- c(1, 2, 3, 4, 5)
+x2 <- c(6, 7, 8, 9, 10)
+x3 <- seq(11, 15)
+x4 <- sample(c(1, 2, 4), size = 5, replace = TRUE)
+
+X <- rbind(x1, x2, x3, x4)
+X
+X <- cbind(x1, x2, x3, x4)
+X
+```
+
+
+# Week4
+
+## 정규분포
+
+
+```{r}
+x <- seq(-3, 3, by = 0.01)
+fx <- dnorm(x, mean = 0, sd = 1) #확률밀도함수
+plot(x, fx, type = 'l', main = 'pdf of normal distribution')
+px <- pnorm(x, mean = 0, sd = 1, lower.tail = TRUE)
+plot(x, px, type = 'l', main = 'cdf of normal distribution')
+qx <- qnorm(px, mean = 0, sd = 1, lower.tail = TRUE)
+```
 
 
 
+```{r}
+par(mfrow = c(1, 3))
+plot(x, fx, type = 'b', main = 'pdf of normal distribution')
+plot(x, px, type = 'l', main = 'cdf of normal distribution')
+plot(px, qx, type = 'l', main = 'quantile for px')
+dev.off()
+```
+
+
+## 이항분포
+
+
+```{r}
+x <- 0:10
+fx <- dbinom(x, size = 10, prob = 0.3)
+plot(x, fx, type = 'h', main = 'pdf of normal distribution') #막대형 히스토그램
+px <- pbinom(x, size = 10, prob = 0.3)
+plot(x, px, type = 'h', main = 'cdf of normal distribution')
+```
+
+
+## 카이제곱분포
+
+
+```{r}
+x <- seq(0, 10, by = 0.01)
+fx <- dchisq(x, df = 12)
+fx
+```
+
+
+## 난수 생성
+
+```{r}
+s1 <- sample(c(1, 2, 4), size = 5, replace = TRUE)
+s2 <- runif(n = 10, min = 0, max = 2) #random from uniform
+```
 
 
 
+## qqplot
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+```{r}
+qqnorm()
+qqline()
+```
 
 
 
