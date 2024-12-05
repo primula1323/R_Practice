@@ -1,0 +1,154 @@
+---
+title: "multivariate_hw1"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+library('ggExtra')
+set.seed(42)
+```
+
+
+# Q1.9
+
+```{r}
+x1 <- c(-6, -3, -2, 1, 2, 5, 6, 8)
+x2 <- c(-2, -3, 1, -1, 2, 1, 5, 3)
+dat <- tibble(x1, x2)
+dat
+```
+
+
+## (a)
+
+```{r}
+colMeans(dat)
+var(dat)
+(7/8)*var(dat)
+```
+
+
+## (b)
+
+```{r}
+dat2 = dat %>% transmute(x1_tilda = 0.899*x1 + 0.438*x2, 
+                      x2_tilda = 0.899*x2 - 0.438*x1)
+dat2
+```
+
+
+## (c)
+
+```{r}
+colMeans(dat2)
+var(dat2)
+(7/8)*var(dat2)
+```
+
+
+## (d)
+
+```{r}
+nx1_tilda = 0.899*4 + 0.438*(-2)
+nx2_tilda = 0.899*(-2) - 0.438*4
+```
+
+
+## (e)
+
+이 문제의 답은 1페이지에 있음. 
+
+
+# Q1.15
+
+## Data Importing
+
+```{r}
+df <- read.delim("T1-7.DAT", sep = "", header = FALSE)
+df
+```
+
+이 데이터에서, V1~V6은 각각 교재의 X1~X6을 지칭하는 어휘에 해당한다.
+
+
+## (a)
+
+### scatterplot
+
+```{r}
+ggplot(data = df) +
+  geom_point(mapping = aes(x = V2, y = V3))
+```
+
+
+### marginal histogram
+
+```{r}
+ggplot(data = df) +
+  geom_histogram(mapping = aes(x = V2), bins = 50)
+ggplot(data = df) +
+  geom_histogram(mapping = aes(x = V3), bins = 50) +
+  geom_vline(xintercept = 3.5, color = 'red')
+```
+
+
+### side histogram + scatterplot
+
+```{r}
+temp <- ggplot(df, aes(x = V2, y = V3)) + geom_point()
+ggMarginal(temp, type = "histogram")
+```
+
+
+### V3(x3)의 에러?
+
+히스토그램의 V3 == 3.5에 그어 둔 빨간 선 오른쪽에도 데이터가 몇 개씩 분포하는 모습을 보인다. 이것들이 outliers인지 의심해 볼 수는 있지만, 데이터의 오류라고 판단하기에는 근거가 지나치게 부족하다.
+
+
+## (b)
+
+### sample mean vector
+
+```{r}
+colMeans(df)
+```
+
+
+### sample variance-covariance matrix : S_n
+
+```{r}
+(97/98)*var(df)
+```
+
+
+### sample variance-covariance matrix : unbiased estimator for sigma
+
+```{r}
+var(df)
+```
+
+
+### sample correlation matrix
+
+```{r}
+cor(df)
+```
+
+
+### 상관관계 해석
+
+* 우선, V6(skin reaction)은 전반적으로 타 변수들과 상관관계가 작은 편이다.
+* 또한, V5(appetite)는 전반적으로 타 변수들과 상관관계가 큰 편이다.
+* 상관관계의 절댓값이 가장 큰 것은 V4(amount of food consumed)와 V5(appetite)였다.
+
+
+

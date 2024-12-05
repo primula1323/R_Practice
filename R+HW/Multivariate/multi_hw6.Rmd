@@ -1,0 +1,161 @@
+---
+title: "multivariate_hw6"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+
+library(tidyverse)
+library(mvtnorm)
+```
+
+---
+
+# Q5.1
+
+```{r}
+pf(50/11, 2, 2, lower.tail = FALSE) # F(2, 2) 계산
+qf(0.05, 2, 2, lower.tail = FALSE)
+```
+
+
+
+---
+
+#Q5.3
+
+```{r}
+invS <- matrix(c(203.018, -163.391, -163.091, 200.228), nrow = 2)
+muX <- matrix(c(0.014, 0.003), nrow = 2)
+Tsquared_Q3 <- 42 * t(muX) %*% invS %*% muX
+Tsquared_Q3
+pf(Tsquared_Q3*20/41, 2, 40, lower.tail = FALSE) < 0.05 # F(2, 40) 계산. not reject H0.
+critical_value <- qf(0.05, 2, 40, lower.tail = FALSE)*(41/20) #기각역의 critical value.
+```
+
+
+
+---
+
+#Q5.4
+
+우선 문제풀이에 쓰일 자료를 입력한다.
+
+```{r}
+mu <- c(95.52, 164.38, 55.69, 93.39, 17.98, 31.13)
+va <- c(3266.46, 721.91, 179.28, 474.98, 9.95, 21.26)
+s14 <- 1175.50
+s56 <- 13.88
+```
+
+## (a)
+
+```{r}
+crit_a <- qchisq(0.05, 6, lower.tail = FALSE)
+
+for (i in 1:6) {
+  print(c(mu[i] - sqrt(va[i]*crit_a/61), mu[i] + sqrt(va[i]*crit_a/61)))
+}
+```
+
+## (b)
+
+```{r}
+matrix_s14 <- matrix(c(va[1], s14, s14, va[4]), nrow = 2)
+eigen_result <- eigen(matrix_s14, symmetric = TRUE)
+
+c(mu[1] - sqrt(crit_a*eigen_result$values[1]/61), 
+  mu[1] + sqrt(crit_a*eigen_result$values[1]/61))
+
+c(mu[4] - sqrt(crit_a*eigen_result$values[2]/61), 
+  mu[4] + sqrt(crit_a*eigen_result$values[2]/61))
+```
+
+## (c)
+
+```{r}
+crit_b <- qt(1/240, 60, lower.tail = FALSE)
+
+for (i in 1:6) {
+  print(c(mu[i] - crit_b*sqrt(va[i]/61), mu[i] + crit_b*sqrt(va[i]/61)))
+}
+```
+
+## (d)
+
+```{r}
+c(mu[1] - crit_b*sqrt(va[1]/61), mu[1] + crit_b*sqrt(va[1]/61))
+c(mu[4] - crit_b*sqrt(va[4]/61), mu[4] + crit_b*sqrt(va[4]/61))
+```
+
+## (e)
+
+```{r}
+crit_c <- qt(1/280, 60, lower.tail = FALSE)
+
+c(mu[6] - mu[5] - crit_c*sqrt((va[5]-2*s56+va[6])/61), 
+  mu[6] - mu[5] + crit_c*sqrt((va[5]-2*s56+va[6])/61))
+```
+
+
+
+---
+
+# Q5.5
+
+우선, 문제에 제시된 정보를 R 코드로 입력한다. q+1 = k = 3개 범주로부터 다항분포에 따라 다음과 같이 분포가 생성되었다.
+
+$$
+X \; {\sim} \; Multi(n = 200, ~ p = (p_1, p_2, p_3))
+$$
+
+이제 Result의 결과를 이에 적용한다.
+
+```{r}
+p1h <- 117/200
+p2h <- 62/200
+p3h <- 21/200
+
+ph <- c(p1h, p2h, p3h)
+sh <- matrix(c(p1h^2, -p1h*p2h, -p1h*p3h, -p1h*p2h, p2h^2, -p1h*p3h, -p1h*p3h, p2h*p3h, p3h^2), nrow = 3)
+
+crit <- qchisq(0.05, 2, lower.tail = FALSE)
+```
+
+따라서 $p_1, p_2, p_3$ 각각의 simultaneous 95% CI는 다음과 같이 주어진다.
+
+```{r}
+c(p1h - sqrt(crit*sh[1]/200), p1h + sqrt(crit*sh[1]/200))
+c(p2h - sqrt(crit*sh[5]/200), p2h + sqrt(crit*sh[5]/200))
+c(p3h - sqrt(crit*sh[9]/200), p3h + sqrt(crit*sh[9]/200))
+```
+ 
+
+
+
+
+
+
+
+
+
