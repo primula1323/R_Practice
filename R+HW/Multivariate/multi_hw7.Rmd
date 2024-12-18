@@ -1,0 +1,298 @@
+---
+title: "multivariate_hw7"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+
+library(tidyverse)
+library(mvtnorm)
+library(MVTests)
+```
+
+---
+
+# Q 6.1
+
+```{r}
+x1_c <- c(6, 6, 18, 8, 11, 34, 28, 71, 43, 33, 20)
+x1_s <- c(25, 28, 36, 35, 15, 44, 42, 54, 34, 29, 39)
+x2_c <- c(27, 23, 64, 44, 30, 75, 26, 124, 54, 30, 14)
+x2_s <- c(15, 13, 22, 29, 31, 64, 30, 64, 56, 20, 21)
+
+df <- tibble(x1_c, x1_s, x2_c, x2_s)
+```
+
+
+
+```{r}
+diff_df <- df %>% 
+  transmute(diff_x1 = x1_c - x1_s, diff_x2 = x2_c - x2_s)
+```
+
+
+```{r}
+mean_df <- colMeans(diff_df)
+mean_df
+var_df <- cov(diff_df)
+var_df
+```
+
+교재의 $S_d$와 데이터 매트릭스를 직접 입력해 계산한 $S_d$의 값이 약간 다르다. 문제풀이에서는 데이터 매트릭스를 직접 입력해 계산한 값을 활용해 계산한다.
+
+
+```{r}
+sqrt(eigen(var_df)$values)
+eigen(var_df)$vectors
+```
+
+
+
+# Q 6.2
+
+```{r}
+crit_v1 <- sqrt(var_df[1]/11)*qt(1/80, df = 10, lower.tail = FALSE)
+BCI_V1 <- c(mean_df[1] - crit_v1, mean_df[1] + crit_v1)
+crit_v2 <- sqrt(var_df[4]/11)*qt(1/80, df = 10, lower.tail = FALSE)
+BCI_V2 <- c(mean_df[2] - crit_v2, mean_df[2] + crit_v2)
+```
+
+
+```{r}
+BCI_V1
+BCI_V2
+```
+
+example 6.1의 동시 신뢰구간은 `diff_x1`의 경우 (-22.46, 3.74), `diff_x2`의 경우 (-5.71, 32.25)이다. 여기서 구한 본페르니 신뢰구간이 동시 신뢰구간에 비해 V1과 V2 모두 upper bound가 작고 lower bound가 커서 신뢰구간이 더 좁은 것을 볼 수 있다.
+
+
+# Q 6.3
+
+```{r}
+diff_q3 <- diff_df %>% slice(-8)
+xbar <- colMeans(diff_q3)
+Smtx <- cov(diff_q3)
+```
+
+위와 같이 이상치를 제거한 데이터프레임을 구하였고, 평균벡터와 분산행렬을 구하였다.
+
+
+동시 신뢰구간
+
+```{r}
+crit <- sqrt(qf(0.05, 2, 8, lower.tail = FALSE) * (2*9/8))
+SCI_V1 <- c(xbar[1] - crit*sqrt(Smtx[1]/10), xbar[1] + crit*sqrt(Smtx[1]/10))
+SCI_V2 <- c(xbar[2] - crit*sqrt(Smtx[4]/10), xbar[2] + crit*sqrt(Smtx[4]/10))
+```
+
+
+```{r}
+eigen(Smtx)
+```
+
+
+본페르니 신뢰구간
+
+```{r}
+crit_v1 <- sqrt(Smtx[1]/10)*qt(1/80, df = 9, lower.tail = FALSE)
+BCI_V1 <- c(xbar[1] - crit_v1, xbar[1] + crit_v1)
+crit_v2 <- sqrt(Smtx[4]/10)*qt(1/80, df = 9, lower.tail = FALSE)
+BCI_V2 <- c(xbar[2] - crit_v2, xbar[2] + crit_v2)
+```
+
+
+```{r}
+SCI_V1
+BCI_V1
+
+SCI_V2
+BCI_V2
+```
+
+동시 신뢰구간 SCI_V1, SCI_V2가 (0,0) point를 포함하지 않으므로 이상치를 기각한 경우에도 example 6.1과 같이 귀무가설을 기각하게 된다. 이상치 유무와 관계없이 귀무가설을 기각하지만, 이 경우에는 동시 신뢰구간이 0을 포함하는 상황 자체가 존재하지 않아 example 6.1에 비해 유의수준이 높을 것이다.
+
+
+# Q 6.4
+
+```{r}
+tdf <- log(df) %>% transmute(dx1 = x1_c - x1_s, dx2 = x2_c - x2_s)
+tdf
+```
+
+로그 변환된 데이터프레임을 계산하였다.
+
+## (a)
+
+```{r}
+xbar <- colMeans(tdf)
+Smtx <- cov(tdf)
+```
+
+
+### Hotelling's T^2 test
+
+```{r}
+test_statistics <- 11 * t(xbar) %*% solve(Smtx) %*% (xbar)
+critical_value <- qf(0.05, 2, 9, lower.tail = FALSE) * (2*10/9)
+test_statistics
+critical_value
+test_statistics > critical_value
+```
+검정 결과 차이가 있다는 귀무가설을 기각하게 된다. 
+
+
+## (b)
+
+```{r}
+crit_v1 <- sqrt(Smtx[1]/11)*qt(1/80, df = 10, lower.tail = FALSE)
+BCI_V1 <- c(xbar[1] - crit_v1, xbar[1] + crit_v1)
+crit_v2 <- sqrt(Smtx[4]/11)*qt(1/80, df = 10, lower.tail = FALSE)
+BCI_V2 <- c(xbar[2] - crit_v2, xbar[2] + crit_v2)
+```
+
+```{r}
+BCI_V1
+BCI_V2
+```
+본페르니 신뢰구간은 위와 같다.
+
+
+## (c)
+
+```{r}
+qqnorm(tdf$dx1); qqline(tdf$dx1)
+qqnorm(tdf$dx2); qqline(tdf$dx2)
+```
+
+marginally normal이라고 볼 수도 있을 것 같다.
+
+
+```{r}
+Xc <- t(t(tdf) - xbar)
+Mdist <- sqrt( diag( Xc %*% solve(Smtx) %*% t(Xc) ) ) 
+qqplot( qchisq(ppoints(11), df = 3), Mdist^2)
+```
+
+n = 11은... 정규성 여부를 판단하기 어렵지만, 직선을 따른다고 말하기 어려워 보인다. 즉 joint normal이라고 말하기 어렵다.
+
+
+# Q 6.5
+
+```{r}
+xbar <- c(46.1, 57.3, 50.4)
+Smtx <- matrix(c(101.3, 63.0, 71.0, 63.0, 80.2, 55.6, 71.0, 55.6, 97.4), nrow=3)
+n <- 40
+Cmtx <- matrix(c(1, 0, -1, 1, 0, -1), nrow = 2)
+```
+
+## (a)
+
+```{r}
+test_statistics <- n * t(Cmtx %*% xbar) %*% solve(Cmtx %*% Smtx %*% t(Cmtx)) %*% (Cmtx %*% xbar)
+critical_value <- qf(0.05, 2, 38, lower.tail = FALSE) * (2*39/38)
+test_statistics > critical_value
+```
+
+가설 검정 결과 귀무가설을 기각한다. 즉 유의수준 0.05에서 평균이 다르다고 볼 만한 충분한 증거가 있다.
+
+
+## (b)
+
+```{r}
+#(mu1 vs. mu3)
+xbar[1] - xbar[2]
+
+sqrt(critical_value * Smtx[1] / 40)
+```
+
+
+
+
+# Q 6.6
+
+
+```{r}
+qf(0.01, 2, 4, lower.tail = FALSE)*(2*5/4)
+sqrt(45*7/12)*sqrt(8/5)
+sqrt(45*7/12)*sqrt(2)
+```
+
+
+
+# Q 6.7
+
+```{r}
+n1 <- 45
+n2 <- 55
+xb1 <- c(204.4, 556.6)
+xb2 <- c(130.0, 355.0)
+Sm1 <- matrix(c(13825.3, 23823.4, 23823.4, 73107.4), nrow = 2)
+Sm2 <- matrix(c(8632.0, 19616.7, 19616.7, 55964.5), nrow = 2)
+Sp <- ((n1-1)*Sm1 + (n2-1)*Sm2)/(n1 + n2 - 2)
+```
+
+
+```{r}
+critical_value <- qf(0.05, 2, 97, lower.tail = FALSE) * (98*2/97)
+test_statistics <- t(xb1 - xb2) %*% solve((1/n1 + 1/n2)*Sp) %*% (xb1 - xb2)
+```
+
+
+```{r}
+critical_value
+test_statistics
+```
+
+```{r}
+solve(Sp) %*% (xb1 - xb2)
+```
+
+# Q 6.13
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
