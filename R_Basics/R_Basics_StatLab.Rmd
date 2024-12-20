@@ -1,0 +1,204 @@
+---
+title: "R_Basics_StatLab"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+
+library(tidyverse)
+```
+
+---
+
+
+
+# Estimation
+
+```{r}
+score2 <- c()
+for (i in 1:5) {
+  score2[i] <- score[i] + sample(-10:10, 1)
+}
+t.test(score, mu = 40, alternative = "greater")#일표본
+t.test(score, score2, paired = T)#대응비교(쌍체비교)
+```
+
+
+```{r}
+#tapply(x, group, func) : x에 group별로 func 적용한 vector 뱉어내는 함수
+var.test(score, score2)#등분산성 F-test
+t.test(score, score2, var.equal = T)#등분산성 이표본 t-test
+```
+
+# Discrete Data Analysis
+
+##동질성검정, 독립성검정 - chi-squared test
+
+```{r}
+#chisq.test(x) where x : 분할표표
+```
+
+동질성검정 : 특정 행위 여부에 따라 각 집단의 특성이 달라지는가?
+독립성검정 : 특정 두 행위 간 서로 연관이 있는가?
+
+
+# Cor analysis, regression analysis
+
+## Correlation Analysis
+
+```{r}
+cor.test(score, score2)
+cor.test(score, score2, alternative = 'greater')
+```
+
+## Simple Linear Regression Analysis
+
+
+### Significance of regression
+
+
+```{r}
+lmscore <- lm(score2 ~ score)
+lmscore
+summary(lmscore)
+coef(lmscore)[1]
+anova(lmscore)
+```
+
+
+### Residual Analysis
+
+
+```{r}
+par(mfrow = c(2,2))
+plot(lmscore)
+```
+
+```{r}
+dev.off()
+```
+
+
+
+## Multiple Linear Regression Analysis
+
+
+```{r}
+score3 <- c()
+for (i in 1:5) {
+  score3[i] <- score[i] + sample(-20:0, 1)
+}
+```
+
+
+```{r}
+scores <- cbind(score, score2, score3)
+cor(scores)
+plot(scores)
+lmscore23 <- lm(score ~ score2 + score3)
+```
+
+
+
+
+# ANOVA(ANalysis Of VAriance)
+
+
+## 일원배치법 
+
+```{r}
+gender <- factor(c('M','K','F','K','M','F','M','M','F','K','F','F'))
+scorek <- c()
+for (i in 1:12) {
+  scorek[i] <- sample(0:100, 1)
+}
+onewaydata <- cbind(gender, scorek)
+onewaydata
+```
+
+
+```{r}
+temp_fit <- lm(scorek~gender)
+summary(temp_fit)
+anova(temp_fit)
+```
+
+
+## 이원배치법 : 반복 X
+
+```{r}
+gender1 <- factor(c('M','K','F','K','M','F','M','M','F','K','F','F'))
+gender2 <- factor(c('a', 'b', 'b', 'b', 'a', 'c', 'c', 'd', 'd', 'a', 'd', 'c'))
+scorek <- c()
+for (i in 1:12) {
+  scorek[i] <- sample(0:100, 1)
+}
+twowaydata <- cbind(gender1, gender2, scorek)
+twowaydata
+twowaydata <- as.data.frame(twowaydata)
+```
+
+
+```{r}
+two_one_lm <- lm(scorek ~ gender1 + gender2, data = twowaydata)
+anova(two_one_lm)
+```
+
+
+## 이원배치법 : 반복 O
+
+
+```{r}
+gender3 <- factor(c('M','K','F','K','M','F','M','M','F','K','F','F'))
+gender4 <- factor(c('a', 'b', 'b', 'b', 'a', 'c', 'c', 'd', 'd', 'a', 'd', 'c'))
+scorel <- c()
+for (i in 1:60) {
+  scorel[i] <- sample(0:100, 1)
+}
+twowaydata2 <- cbind(gender3, gender4, scorel)
+twowaydata2
+twowaydata2 <- as.data.frame(twowaydata2)
+```
+
+
+```{r}
+two_rep_lm <- lm(scorel ~ gender3 + gender4, data = twowaydata2)
+anova(two_rep_lm)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

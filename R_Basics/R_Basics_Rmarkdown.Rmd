@@ -1,0 +1,148 @@
+---
+title: "R_Basics_Rmarkdown"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+```
+
+---
+
+# YAML Header
+
+I set some useful default preset.
+
+
+# code chunk
+
+## code chunk options
+
+`eval = FALSE` : prevents code from being evaluated. you can use this when coding test.
+`include = FALSE` : runs the code, but don't show the code or results
+`echo = FALSE` : only prevents the code chunk from appearing
+`error = True` : cause the render to continue even if codes returns an error.
+`cache = TRUE` : will save the output of the chunk on disc. note that even if the '.csv' files in code change, the code chunk does not rerun.
+`message = FALSE/warning = FALSE` : do not show the messages or warnings.
+`results` = "hide" or `fig.show` = "hide"
+
+`knitr::opts_chunk$set(echo = TRUE)` : setting global options. 
+
+
+# text chunk
+
+\*italic\* or \_italic\_
+*italic*
+_italic_
+
+\*\*bold\*\* or \_\_bold\_\_
+**bold**
+__bold__
+
+\`code\`
+`code`
+
+superscript \^super\^
+super^2^
+
+subscript \~sub\~
+sub~2~
+
+\#1st level header
+\#\#2nd level header
+
+* Bulleted list item 1
+* item 2
+  *item 2a(by \\t)
+
+1. Numbered list item 1
+0. item 2. the number is not important.
+
+link : 
+<domain>
+[text](domain)
+![imgname](./imgfilename)
+
+Tables
+
+| 1st Header | 2nd Header | 3rd Header | 4st Header |
+| : -------- | ---------- | ----------:|:--------- : |
+| con        | con | con | con |
+| con        | con | con | con |
+
+
+
+### inline code chunk
+
+`r 1+1` will embed the result of R code directly into the test. 
+
+for example, `r 4+5` is that.
+
+`python 3+4` can also used.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

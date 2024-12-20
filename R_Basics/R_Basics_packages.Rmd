@@ -1,0 +1,128 @@
+---
+title: "R_Basics_packages"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+```
+
+---
+
+# Basic Packages
+
+## tidyverse
+
+```{r}
+#install.packages('tidyverse')
+```
+
+
+```{r}
+library(tidyverse)
+comment = '
+The tidyverse is a set of packages that work in harmony because they share common data representations and API design. 
+The tidyverse package is designed to make it easy to install and load core packages from the tidyverse in a single command.
+https://tidyverse.tidyverse.org/index.html
+'
+```
+
+
+`library(tidyverse)` will load the core tidyverse packages:
+* `ggplot2`, for data visualisation.
+* `dplyr`, for data manipulation.
+* `tidyr`, for data tidying.
+* `readr`, for data import.
+* `purrr`, for functional programming.
+* `tibble`, for tibbles, a modern re-imagining of data frames.
+* `stringr`, for strings.
+* `forcats`, for factors.
+* `lubridate`, for date/times.
+
+
+
+## glue
+
+```{r}
+#install.packages('glue')
+```
+
+
+```{r}
+library(glue)
+comment = '
+The glue package contains functions for string interpolation: 
+gluing together character strings and R code.
+https://glue.tidyverse.org/index.html
+'
+```
+
+
+
+
+
+
+## MASS
+
+```{r}
+#install.packages('MASS')
+```
+
+```{r}
+library(MASS)
+comment = '
+
+'
+```
+
+The `MASS` package has `select()` function, which conflicts with `dplyr::select()`. Generally, it is recommended to load `tidyverse` after loading `MASS`, because the `select()` function in `MASS` package is not used not so often.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

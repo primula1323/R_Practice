@@ -1,0 +1,723 @@
+---
+title: "R_Basics_baseR"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+
+library(tidyverse)
+```
+
+---
+
+# R Base
+
+```{r}
+
+#주석 
+comment = '
+If this story was the one to draw a miracle,
+when time comes someday I will be meeting you again
+'
+```
+
+
+
+
+
+```{r}
+#help("list")
+#?list
+```
+
+
+
+
+## Basic Operators
+
+### Arithmetic Operators
+
+from () to ().
+
+```{r}
+# addition
+3+4
+# subtraction
+6-5
+# multiplication
+5*2
+# division
+7/3
+# integer division
+7%/%3
+# remainder
+7%%3
+# power 
+4**3
+4^3
+```
+
+
+### Relational Operators
+
+```{r}
+# > : LHS is greater than RHS
+4 > 7
+9 > 0.6
+8 > 8
+# < : RHS is greater than LHS
+4 < 7
+9 < 0.6
+8 < 8
+```
+
+```{r}
+# >= : LHS is greater than or equal to RHS
+4 >= 7
+9 >= 0.6
+8 >= 8
+# <= : RHS is greater than or equal to LHS
+4 <= 7
+9 <= 0.6
+8 <= 8
+```
+
+
+```{r}
+# == : LHS is equal to RHS
+4 == 7
+9 == 0.6
+8 == 8
+# != : LHS is not equal to RHS
+4 != 7
+9 != 0.6
+8 != 8
+```
+
+Floating point error : `all.equal(a, b)` function can solve this problem.
+
+
+### Logical Operators
+
+`&` : and 
+`|` : or
+`!` : not
+
+```{r}
+print(3&0)
+print(TRUE&FALSE)
+print(-11|2)
+print(TRUE|FALSE)
+print(!1)
+print(!TRUE)
+```
+
+## printing
+
+```{r}
+s1 <- 'asdf'
+s2 <- 'tmf'
+s3 <- 'lly'
+s4 <- 'kyobo'
+s5 <- 4+5
+print(s1)
+print(paste0(s1, s3))
+print(paste(s2, s5, sep=''))
+cat(s3, s2)
+```
+
+```{r, eval=FALSE}
+for (i in 1:3) {
+  glue
+}
+```
+
+
+## Basic Variables, data types
+
+| Data Types | Description |
+|---------|-----|
+| numeric | integer/double |
+| character | string/character |
+| logical | TRUE/FALSE |
+
+```{r}
+a1 <- 5
+a2 <- 2.5
+a3 <- 5L
+a4 <- 'a'
+a5 <- 'asdf'
+a6 <- TRUE
+
+mode(a1)
+mode(a2)
+mode(a3)
+mode(a4)
+mode(a5)
+mode(a6)
+
+typeof(a1)
+typeof(a2)
+typeof(a3)
+typeof(a4)
+typeof(a5)
+typeof(a6)
+```
+
+
+```{r}
+is.logical(a1)
+as.logical(a1)
+```
+
+
+
+`mode()` function returns the type of object. `typeof()` returns 'double' or 'integer'.
+
+
+## data structures
+
+| Dimension | Single Data Type | Multiple Data Types |
+|-----|-----|-----|
+| 1 | vector | list |
+| 2 | matrix | data.frame |
+| 3 | array | tibble* |
+
+* `tibble` from `tibble` package. tibble supports `layer` dimension.
+
+
+### vector
+
+```{r}
+v1 <- c(1, 2, 3, 5, 7)
+v2 <- 6:10
+v3 <- seq(from=10, to=1, by=-4)
+v4 <- c(rep(c(1,2), 3))
+v5 <- c(rep(c(1,2), 3, each=2))
+cat(v1, v2, v3, v4, v5)
+```
+
+(indexing)
+
+```{r}
+v1[1]
+v1[-2]
+v1[v1%%2 == 1]
+v1[2:4]
+v1[c(1, 5)]
+```
+
+(vector functions)
+
+```{r}
+v1 <- c(-1, 0, 2, 4, 15, 62, -7)
+v2 <- c(-2, 8, 5, 3, 1, -1, 9)
+
+mean(v1)
+sum(v1)
+median(v1)
+range(v1)
+sd(v1)
+var(v1)
+cov(v1, v2)
+cor(v1, v2)
+min(v1)
+max(v1)
+```
+
+
+(vectorized operations)
+
+```{r}
+v1 <- c(-1, 0, 2, 4, 15, 62, -7)
+v2 <- c(-2, 8, 5, 3, 1, -1, 9)
+v3 <- c(1, 56, 15, 62, 143, 23, 18)
+v4 <- c(-1.5, -7.3, -7.7, 1.5, 7.3, 7.7)
+
+sqrt(v3)
+log(v3, base=10)
+abs(v2)
+round(v4)
+trunc(v4)
+```
+
+
+
+### list
+
+(key, value) pairs로 데이터 저장.
+
+```{r}
+lkst = list(vec=v1, vl=a2)
+lkst
+
+lkst$vec
+lkst$vec[1]
+
+lkst$vl
+```
+
+
+### matrix
+
+matrix : 2-dim vector.
+
+```{r}
+dt <- c(11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33, 34, 35)
+
+mtx1 <- matrix(dt, nrow=5, ncol=3)
+mtx1
+mtx2 <- matrix(dt, nrow=3, ncol=5)
+mtx2
+mtx3 <- matrix(dt, nrow=5, ncol=3, byrow=TRUE)
+mtx3
+mtx4 <- matrix(dt, nrow=3, ncol=5, byrow=TRUE)
+mtx4
+mtx5 <- matrix(dt, nrow=5, ncol=3, byrow=TRUE, dimnames=list(c('i1', 'i2', 'i3', 'i4', 'i5'), c('c1', 'c2', 'c3')))
+mtx5
+mtx6 <- dt
+dim(mtx6) <- c(5, 3)
+mtx6
+```
+
+(matrix operations)
+
+```{r}
+dim(mtx5)
+nrow(mtx5)
+ncol(mtx5)
+
+mtx5[4, 2]
+mtx5[4,]
+mtx5[,2]
+
+rownames(mtx5)
+colnames(mtx5)
+
+rowSums(mtx5)
+colSums(mtx5)
+
+rowMeans(mtx5)
+colMeans(mtx5)
+```
+
+
+### data.frame
+
+```{r}
+df1 <- data.frame(v1, v2, v3, f1=c('F', 'F', 'F', 'M', 'U', 'M', 'U'))
+df1
+df2 <- data.frame(v1, v2, v3, f1=c('F', 'F', 'F', 'M', 'U', 'M', 'U'), 
+                  stringsAsFactors=TRUE)
+df2
+```
+
+
+### factor
+
+```{r}
+data_vector <- c('M', 'F', 'U', 'F', 'F', 'U', 'M', 'F')
+levels_vector <- c('M', 'F', 'U')
+display_vector <- c('Male', 'Female', 'Unknown')
+
+factor(data_vector, levels_vector, display_vector)
+```
+
+```{r}
+data_vector <- c('M', 'F', 'U', 'F', 'F', 'U', 'M', 'F')
+levels_vector <- c('M', 'F', 'U')
+display_vector <- c('Good', 'Soso', 'Bad')
+
+factor(data_vector, levels_vector, display_vector, ordered = FALSE)
+```
+
+
+---
+
+## Flow Control : Conditionals
+
+### if - else if - else 
+
+```{r}
+score <- 20
+if (score > 90) {
+  print('A')
+} else if (score > 80){
+  print('B')
+} else {
+  print('F')
+}
+```
+
+
+### ifelse
+
+```{r}
+v1 <- c(1, 0, 1, 2, 6, 3, 2, 1, 5, 6)
+ifelse(v1 > 5, TRUE, FALSE)
+```
+
+
+### switch
+
+```{r}
+course <- '1'
+switch(course, '0' = 'A', '1' = 'F')
+```
+
+vectorized 연산 불가. 
+
+
+
+
+
+## Flow control : Iteration
+
+### for
+
+```{r}
+for (i in 1:10) {
+  print(i)
+}
+```
+
+### while
+
+```{r}
+i <- 1
+while (i <= 10) {
+  print(i)
+  i <- i + 1
+}
+```
+
+```{r}
+i <- 1
+while (i <= 10) {
+  print(i)
+  i <- i + 1
+}
+```
+
+
+### repeat
+
+```{r}
+i <- 1
+repeat{
+  print(i)
+  i <- i + 1
+  if (i > 10) {
+    break
+  }
+  }
+```
+
+
+### loop control : 
+
+
+(break)
+
+```{r}
+for (i in 1:10) {
+  print(i)
+  if (i%/%2 == 0) {
+    break
+  }
+}
+```
+
+
+(next)
+
+```{r}
+for (i in 1:10) {
+  if (i == 5) {
+    next
+  }
+    print(i)
+}
+```
+
+
+
+---
+
+## User Function
+
+```{r}
+userfunc <- function(arg1, arg2){
+  temp <- arg1 - arg2
+  return((arg1+arg2)*temp)
+}
+
+userfunc(4, 7)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+# File I/O
+
+(Working Directory)
+
+```{r}
+getwd()
+#setwd('C:/Users/Na/Documents/GitHub/R-Practice/R_Basics')
+```
+
+
+(absolute path)
+
+```{r}
+df <- read.csv("C:/Users/Na/Documents/GitHub/R-Practice/R_Basics/R_Basics_csvread.csv", header = F)
+df
+comment = '
+Generally, it is not recommended to use absolute path
+because of reproductivity issue.
+'
+```
+
+
+(relative path)
+
+```{r}
+df <- read.csv("R_Basics_csvread.csv", header = F)
+df
+```
+
+
+
+
+
+
+
+
+
+
+---
+
+# R Base - Visualization
+
+## visualization - univariate
+
+```{r}
+gen1 <- factor(c('F','F','M','M','F'))
+gen2 <- c('F','F','M','M','F')
+score <- c(44, 55, 66, 77, 55)
+t1 <- cbind(gen1, score)
+t2 <- cbind(gen2, score)
+t1
+t2
+```
+
+```{r}
+hist(score)
+hist(score, breaks = 10)
+hist(score, freq = F)#비율
+hist(score, breaks = c(5,15,25,35,45,55,65,75,85))
+hist(score, breaks = seq(5, 105, by = 2))
+plot(score, type = 'h')
+```
+
+```{r}
+stem(score)
+boxplot(score)
+boxplot(score, horizontal = T)
+boxplot(score~gen1)#bivarate
+```
+
+```{r}
+table(gen1)
+table(score)
+fivenum(score)
+summary(score)
+range(score)
+IQR(score)
+mean(score)
+var(score)
+sd(score)
+median(score)
+sum(score)
+min(score)
+max(score)
+round(sd(score))
+round(sd(score), digits = 2)
+rank(score)
+```
+
+
+## Visualization - bivariate
+
+```{r}
+plot(score, gen1, main = 'nyan', sub = 'nnyan')
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', type = 'l')
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', type = 'c')
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', type = 'n')
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', type = 'b')
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', cex = 0.5)
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', cex = 2)
+plot(score, gen1, main = 'nyan', sub = 'nnyan', xlab = 'kodon', ylab = 'GenG', cex = 2, pch = 16)
+```
+
+
+
+## multi graph
+
+```{r}
+par(mfrow = c(2,3))
+for (i in 1:6) {
+  a <- seq(-3, 3, by = 0.1)
+  b <- dnorm(a)
+  c <- seq(-3, 3, by = 1)
+  d <- dnorm(c)
+  plot(a, b, pch = 16, cex = 0.2)
+  lines(c, d)
+}
+dev.off
+```
+
+
+
+## Q-Q plot
+
+```{r}
+dat <- rt(20, df=10)
+qqnorm(dat, pch = 16, cex = 0.2) ; qqline(dat)
+comment = 'lines와 마찬가지로 이미 존재하는 그래프 위에 그리는 것.'
+```
+
+
+
+
+
+---
+
+# Rbase : useful statistics function
+
+## `sample()`
+
+```{r}
+sample(1:100, 20, replace = T)
+sample(1:100, 20, replace = F)
+#sample(x, n, replace = F/T) : x에서 size n vector를 추출.
+```
+
+
+
+
+
+## `factorial()`, `choose()`
+
+```{r}
+choose(12,3)
+factorial(12)
+```
+
+
+
+
+
+
+## distribution call
+
+```{r}
+
+```
+
+
+
+
+
+
+
+### normal distribution
+
+```{r}
+dnorm(0, mean = 0, sd = 1)#point 0에서의 함숫값
+pnorm(0, mean = 0, sd = 1)#point 0에서의 분포함숫값
+qnorm(0.5, mean = 0, sd = 1)#z_0.5가 되는 x값
+pnorm(1, lower.tail = F)#클 확률 구함
+qnorm(0.1587, lower.tail = F)#큰 값이 0.3413인 point
+```
+
+```{r}
+a <- seq(-3, 3, by = 0.1)
+b <- dnorm(a)
+plot(a, b, type = 'l', xlab = 'x', ylab = 'y', main = 'probablilty density function of standard normal distribution')
+```
+
+
+
+### Binomial distribution
+
+```{r}
+dbinom(5, 10, 0.5)
+pbinom(5, 10, 0.5)
+qbinom(0.5, 10, 0.5)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

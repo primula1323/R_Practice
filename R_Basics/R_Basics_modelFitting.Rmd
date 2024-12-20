@@ -1,0 +1,167 @@
+---
+title: "R_Basics_modelFitting"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+
+library(tidyverse)
+```
+
+---
+
+# Data Read/Write
+
+```{r}
+
+```
+
+
+## Data Read/Write : `readr` package
+
+when load `tidyverse`, `readr` package is also loaded.
+
+
+# Regression : `lm()`
+
+# Linear Regression
+
+```{r}
+datasets::iris
+
+datasets::mtcars
+
+
+
+```
+
+
+```{r}
+df <- datasets::airquality %>% drop_na() %>% select(1:5)
+df
+```
+
+
+```{r}
+lm1 <- lm('Ozone ~ Solar.R', data=df)
+lm1
+```
+
+
+```{r}
+lm2 <- lm('Ozone ~ .', data=df)
+lm2
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# Regression : `glm()`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
