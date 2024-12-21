@@ -81,8 +81,15 @@ sub~2~
 
 link : 
 <domain>
-[text](domain)
-![imgname](./imgfilename)
+
+for link webpage, use
+\[text](domain)
+[linktext](https://www.google.com/)
+
+for link image, use
+\![imgname](./imgfilename)
+![imagename](./visualization-stat-bar.png)
+
 
 Tables
 
