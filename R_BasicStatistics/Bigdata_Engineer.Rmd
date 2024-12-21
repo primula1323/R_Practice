@@ -1,0 +1,668 @@
+---
+title: "Bigdata_Engineer"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+install.packages('languageserver')
+```
+
+
+
+
+
+
+# I. R 기초
+
+# Chapter 1
+
+## 연산자 
+
+```{r, eval=FALSE}
+help(comment) #주석 넣는 법법
+```
+
+
+```{r}
+print(1+2)
+print(2-1)
+print(5*3) 
+print(6/2)
+print(7%%2) #remainder
+print(7%/%2) #몫
+print(7**2)
+cat(7^2) #cat function : indexing을 나타내는 [1]을 출력하지 않음 
+```
+
+
+```{r}
+print(1>2)
+print(1<2)
+print(1<=2)
+print(1>=2)
+print(1==2)
+print(1!=2)
+```
+
+
+```{r}
+cat(TRUE&FALSE, ' ')
+cat(TRUE&TRUE)
+cat(TRUE|FALSE)
+cat(!TRUE)
+print(-1&0) # 0은 TRUE, 이외 정수는 FALSE
+print(1:7)
+```
+
+
+## 자료형
+
+```{r}
+a1 <- 1.2
+a2 <- 1L
+a3 <- "G"
+a4 <- FALSE
+a5 <- 1 
+
+mode(a1)
+mode(a2)
+mode(a3)
+mode(a4)
+mode(a5)
+cat('\n')
+typeof(a1)
+typeof(a2)
+typeof(a3)
+typeof(a4)
+typeof(a5)#double : integer가 되려면 L 붙여야 함.
+```
+
+
+## 객체 
+
+|차원|단일 자료|다중 자료|
+|-:|:-|:-:|
+|1|vector|List|
+|2|matrix|DataFrame|
+
+
+### vector
+
+```{r}
+v.eg1 <- c(1, 2, 4)
+v.eg1
+v.eg2 <- rep(v.eg1, 3)
+v.eg2
+v.eg3 <- seq(1, 100, 2)
+v.eg3
+
+v.eg3[3]
+v.eg3[-3]
+v.eg3[v.eg3%%4 == 1]
+v.eg3[5:11]
+```
+
+
+### List
+
+```{r}
+l.eg <- list(name = 'soO', n_runnerup = 7)
+l.eg
+```
+
+
+### Matrix
+
+```{r}
+#extended vector.
+mtx.eg <- matrix(c(1,2,3,4,5,6), 2, 3, byrow = TRUE, dimnames = list(c('k', 's'), c('a', 'b', 'c')))
+mtx.eg
+```
+
+
+### DataFrame
+
+```{r}
+#collection of vectors
+df.eg <- data.frame(a = c(1,2,3,4), b = c('p', 'q', 'r', 's'))
+df.eg
+df.eg2 <- data.frame(a = c(1,2,3,4), b = c('p', 'q', 'r', 's'), stringsAsFactors = TRUE)
+df.eg2$b
+#stringAsFactors : 주어진 문자열을 팩터로 지정할지 여부. TRUE면 팩터로 저장.
+```
+
+
+
+## factor
+
+factor 생성 문법
+
+```{r}
+eg.factor <- factor(x = c(1,2,3,3), c(1,2,3,4,5), c('A', 'B', 'C', 'D', 'E'), ordered = TRUE)
+eg.factor
+```
+
+
+## 조건문
+
+```{r}
+#ifelse()
+#switch()
+eg.switch <- 'c'
+switch(eg.switch,
+       'a' = 'e1',
+       'b' = 'e2',
+       'c' = 'e3',
+       'e5')
+```
+
+
+## 반복문
+
+```{r}
+#for
+for (i in 1:10) {
+  print(i)
+}
+
+print('')
+
+i <- 0
+while (TRUE) {
+  i <- i + 1
+  print(i)
+  if (i >= 10) {
+    break
+  }
+}
+#while TRUE : repeat{}로 사용 가능.
+
+print('')
+
+i <- 0
+for (i in 1:10) {
+  if (i == 4) {next}
+  i <- i + 1
+  print(i)
+  if (i >= 10) {break}
+}
+```
+
+반복문 안에서 사용. i = 1, 2, 3, ... 가정. i = 2에서 next 만나는 순간 i = 2에 대응하는 이후의 모든 시행 중단하고 i=3으로 넘어감.
+
+
+## 사용자 정의 함수
+
+```{r}
+function_eg <- function(p, q, r){
+  return(p + q - r)
+}
+
+function_eg(10, 4, 2)
+
+function_eg2 <- function(p, q, r){
+  p * 100 + q * 10 + r
+}
+
+function_eg2(9, 4, 2)
+```
+
+# II. 빅데이터 분석 실무 
+
+# Chapter 1 데이터 수집 작업
+
+파일 종류 : txt, csv, tsv, excel.
+
+
+```{r}
+library(readxl)
+library(openxlsx)
+```
+
+
+```{r}
+#read.table(file, header, sep)
+#read.csv(file, header)
+#write.csv(x, file, append(덮어쓰기 여부), quote(values, 열 이름 수식화), sep)
+#read_excel(path, sheet, range, col_names(T or F))
+#write.xlsx(x, file)
+```
+
+
+
+# Chapter 2. 데이터 전처리 작업
+
+
+```{r}
+library(plyr)
+library(dplyr)
+```
+
+
+
+## 2.1 기초 함수
+
+
+### plyr
+
+
+**ply 형태. 
+
+첫 글자 : 입력 데이터의 형태
+
+두 번째 글자 : 출력 데이터의 형태
+
+| 입력\\출력| dataframe | list | array | nothing |
+|-|-|-|-|-|
+|dataframe|ddply|dlply|daply|d_ply|
+|list|ldply|llply|laply|l_ply|
+|array|adply|alply|aaply|a_ply|
+
+```{r}
+
+```
+
+
+### dplyr
+
+
+```{r}
+#select()
+#filter()
+#mutate()
+#group_by and summarise()
+#arrange()
+#bind_rows() : bind rowwise
+#bind_cols() : bind columnwise
+```
+
+
+
+## 2.2 Data Cleaning
+
+### 이상값 판별법
+ 
+
+* ESD - 3sigma 이상 떨어진 값이 이상치
+* 기하평균 활용 - 기하평균에서 2.5sigma 이상 떨어진 값이 이상치
+* 사분위수 활용 - Q1, Q3으로부터 1.5IQR(Q3 - Q1) 떨어진 값이 이상치
+
+
+```{r}
+esd <- function(x) {
+  return(abs(x - mean(x)/sd(x)) < 3)
+}
+
+#IQR(x, na.rm = )
+```
+
+
+### 이상값 처리법 :
+
+
+삭제
+대체
+변환(극단적인 값으로 인한 것이면 자연로그 취하기)
+분류(group별 분석)
+
+
+### 데이터 변환
+
+
+(데이터 유형 변환)
+
+
+as.character()
+as.numeric()
+as.double()
+as.integer()
+as.logical()
+
+
+```{r}
+
+```
+
+
+(객체 변환)
+
+as.data.frame()
+as.list()
+as.matrix()
+as.vector()
+as.factor()
+
+
+```{r}
+
+```
+
+
+(날짜 변환)
+
+```{r}
+library(lubridate)
+```
+
+Parse dates with *y*ear, *m*onth, *d*ay
+
+ymd()
+ydm()
+myd()
+mdy()
+dmy()
+dym()
+
+역할 : '문자열'을 'date' 형식으로 변환
+
+
+year()
+month()
+day()
+
+역할 : 'date'에서 '연/월/일' 추출
+
+
+```{r}
+x <- '2022/9/1'
+#month('2022 March 1')
+#month('3 1 1919')
+ymd(x)
+month('2022/2/1')#예외적 가능
+```
+
+
+make_date(year, month, day)
+
+역할 : '연/월/일'을 날짜 형식으로 변환
+
+
+
+ymd_hms()
+ymd_hm()
+ymd_h()
+
+역할 : 문자열을 '날짜 + 시간' 형식으로 변환
+
+
+hour()
+minute()
+second()
+
+역할 : '날짜 + 시간'에서 시간, 분, 초 추출
+
+
+make_datetime(year, month, day, hour, minute, second)
+
+역할 : 여러 변수에 저장된 날짜 데이터들을 하나의 ddtt data로 통합합
+
+
+difftime(time1, time2, units)
+
+역할 : 시간의 차 계산
+
+단위 : auto, secs, mins, hours, days, weeks
+
+
+(데이터 범위 변환)
+
+scale(x, center, scale)
+
+default : center = mean(x), scale = sd(x)
+
+
+정규화(normalization) : 데이터를 0과 1 사이 값으로 변경.
+
+min-max 정규화 : scale(x, center = min(x), scale = max(x) - min(x))
+
+
+표준화(standardization) : scale(x)
+
+
+
+### 표본추출
+
+
+sample(x, size, replace)
+
+
+
+### 데이터 전처리
+
+
+mean(x, trim, na.rm = FALSE)
+median(x, na.rm = FALSE)
+as.numeric(names(table(x)[which.max(table(x))])#직접 구해야 함
+var(x, y=NULL, na.rm = FALSE)
+quantile(x, probs)
+row_number(x) : 각 행마다 순차 번호 부여
+min_rank(x) : x의 순위별로 출력(1등, 1등, 3등)
+dense_rank(x) : x의 순위별로 출력(1등, 1등, 2등)
+
+
+
+## 2.3 분석 모형 선택
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
