@@ -1,0 +1,39 @@
+---
+title: "Untitled"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+
+# R Basic I
+
+# Lecture 1 : Starting R
+
+Tidyverse is basic package for basic data wrangling.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tidyverse')
+```
+
+
+These are for basic datase.
+
+```{r}
+#install.packages(c('nycflights13', 'gapminder', 'Lahman'))
+library('nycflights13')
+library('gapminder')
+library('Lahman')
+```
+
+# Lecture 2 : Data Visualization
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
