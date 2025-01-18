@@ -1,0 +1,72 @@
+---
+title: "베이즈 인자"
+author: "이재용"
+date: "2022.02.24"
+output:
+  html_document:
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+  github_document: 
+    toc: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE, error=TRUE)
+Sys.setlocale(category = "LC_CTYPE", locale = "ko_KR.UTF-8")
+library(ggplot2)
+theme_set(theme_grey(base_family = "AppleGothic"))
+```
+
+```{r}
+library(tidyverse)
+library(coda)
+library(ggmcmc)
+library(rstan)
+#library(bridgesampling)
+
+library(GGally) ## ggpairs
+library(Hmisc) # hist를 데이터프레임에 적용할 수 있게 해준다. 이산형자료 요약에 좋은 describe가 있다. 
+library(psych) # 연속형 자료 요약에 좋은 describe가 있다. 
+
+library(BayesFactor) #베이즈 인자를 구해주는 패키지 
+
+library(ISLR)
+```
+
+
+# 1변량 t-test 
+```{r}
+data(sleep)
+summary(sleep)
+head(sleep)
+```
+10명의 환자들에게 두 종류의 수면제를 투여하고 수면제를 투여하지 않았을 때에 비해 증가되는 수면 시간을 기록하였다. extra는 증가된 시간이고 ID는 환자의 번호, group은  수면제의 종류를 말한다. 여기서는 
+$x_i = $ 첫번째 수면제의 수면 시간 - 두번째 수면제의 수면 시간
+으로 정의하고 
+$$x_i ~ N(\mu, \sigma^2)
+```{r}
+data(sleep)
+
+## Compute difference scores
+diffScores = sleep$extra[1:10] - sleep$extra[11:20]
+
+## Traditional two-tailed t test
+t.test(diffScores)
+
+```
+
+
+```{r}
+bf = ttestBF(x = diffScores)
+## Equivalently:
+## bf = ttestBF(x = sleep$extra[1:10],y=sleep$extra[11:20], paired=TRUE)
+bf
+
+```
+

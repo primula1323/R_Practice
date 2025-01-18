@@ -1,0 +1,166 @@
+---
+title: "12장 선형 회귀 모형"
+output:
+  html_document:
+    number_sections: no
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, cache = FALSE, error = TRUE,
+  fig.width = 6, fig.height = 6
+)
+```
+
+```{r}
+library(rstan)
+library(ggplot2)
+library(GGally)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+set.seed(123456789)
+```
+
+# 스탠을 이용한 선형 모형의 적합
+
+## 자료 읽기 
+
+```{r}
+adv <- read.csv("data/Advertising.csv", header = T, sep = ",")
+adv <- adv[, -1]
+names(adv) <- tolower(names(adv))
+head(adv)
+```
+
+```{r}
+ggpairs(adv, aes(alpha = 0.4))
+```
+
+## 단순 선형 회귀 모형 
+
+$$sales_i = \beta_0 + \beta_1 * tv_i + \epsilon, ~ \epsilon_i, ~ \epsilon_i \sim N(0,\sigma^2) $$
+
+$$\pi(\beta_0, \beta_1, \sigma^2)d\beta_0 d\beta_1 d\sigma^2 = \frac{1}{\sigma^2} d\beta_0 d\beta_1 d\sigma^2$$
+
+```{r}
+adv.lm1.code <- "
+data {
+  int<lower=0> n;
+  vector[n] tv;
+  vector[n] sales;
+}
+
+parameters {
+  real beta0;
+  real beta1;
+  real<lower=0> sigma;
+}
+
+model {
+  for(i in 1:n) {
+    sales[i] ~ normal(beta0 + beta1*tv[i], sigma);
+  }
+
+  target += 1/sigma^2;
+}
+"
+
+data <- list(n = dim(adv)[1], sales = adv$sales, tv = adv$tv)
+```
+
+```{r}
+adv.lm1 <- stan(model_code = adv.lm1.code, data = data, seed = 1234567, chains = 4, iter = 5000, thin = 1)
+```
+
+```{r}
+print(adv.lm1)
+```
+
+```{r}
+plot(adv.lm1, plotfun = "dens")
+```
+```{r}
+plot(adv.lm1, plotfun = "trace")
+```
+
+```{r}
+plot(adv.lm1, plotfun = "ac")
+```
+
+# 스탠을 이용한 이항 회귀 모형의 적합
+
+## 자료 읽기 
+
+```{r}
+library(ISLR)
+data("Default")
+str(Default)
+```
+
+```{r}
+summary(Default)
+```
+
+
+```{r}
+Default %>% ggplot(aes(x = balance, y = default, alpha = 0.05)) +
+  geom_point()
+```
+
+## 로지스틱 회귀 모형 
+
+\begin{align}
+\begin{split}
+    default_i & \stackrel{ind}{\sim} Ber(\pi(balance_i), ~ i=1,2, \ldots, n \\
+    \pi(balance_i) & = logistic (\beta_0 + \beta_1 \times balance_i) = \frac{e^{\beta_0 + \beta_1 \times balance_i}}{1+e^{\beta_0 + \beta_1 \times balance_i}} \\
+    \pi(\beta_0, \beta_1) d\beta_0 d\beta_1 & = 1 \times  d\beta_0 d\beta_1
+\end{split}
+\end{align}
+
+
+```{r}
+default.logistic1.code <- "
+data {
+  int<lower=0> n;
+  int<lower=0, upper=1> defaults[n];
+  vector[n] balance;
+}
+
+parameters {
+  real alpha;
+  real beta;
+}
+
+model {
+  for(i in 1:n) {
+    defaults[i] ~ bernoulli_logit(alpha + beta * balance[i]);
+  }
+}
+"
+
+data <- list(n = dim(Default)[1], defaults = as.integer(as.numeric(Default$default) - 1), balance = Default$balance)
+```
+
+```{r}
+default.logistic1 <- stan(model_code = default.logistic1.code, data = data, seed = 1234567, chains = 4, iter = 5000, thin = 1, cores = 4)
+```
+
+```{r}
+print(default.logistic1)
+```
+
+```{r}
+plot(default.logistic1, plotfun = "dens")
+```
+```{r}
+plot(default.logistic1, plotfun = "trace")
+```
+
+```{r}
+plot(default.logistic1, plotfun = "ac")
+```
+

@@ -1,0 +1,1457 @@
+---
+title: "R_Regression_Lab"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+```
+
+---
+
+# Simple Linear Regression
+
+This code is based on Linear Models with R by Julian Faraway
+
+```{r}
+rm(list = ls())
+
+suppressPackageStartupMessages({
+    library(dplyr)
+    library(ggplot2)
+    library(faraway)
+    library(lmtest) # for Durbin-Watson test
+    library(ggcorrplot) # for correlation plot
+    library(olsrr)
+    library(caret)
+    library(mlbench) # for dataset BostonHousing
+    library(glmnet)
+})
+```
+
+```{r}
+rm(list = ls())
+
+library(faraway)
+library(lmtest) # for Durbin-Watson test
+library(ggcorrplot) # for correlation plot
+library(olsrr)
+library(tidyverse)
+```
+
+
+```{r}
+#help(gala)
+data(gala, package = "faraway")
+gala %>% head()
+```
+
+```{r}
+gala %>% glimpse()
+```
+
+Species: the number of plant species found on the island
+Endemics: the number of endemic species (we are not going to use this one)
+Area: the area of the island (square km)
+Elevation: the highest elevation of the island (m)
+Nearest: the distance from the nearest island (km)
+Scruz: the distance from Santa Cruz island (km)
+Adjacent: the area of the adjacent island (square km)
+
+
+## Fit Simple Linear Regression Model
+
+n is 30
+response variable: Species
+independent variables: Area, Elevation, Nearest, Scruz, Adjacent
+
+```{r}
+gala %>% ggplot2::ggplot(., aes(x = Endemics, y = Species)) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+coord_cartesian(xlim = c(0, 100), ylim = c(0, 500))
+```
+
+
+```{r}
+fit_simple_linear_regression <- stats::lm(
+    Species ~ Endemics,
+    data = gala
+)
+
+coef(fit_simple_linear_regression)
+summary(fit_simple_linear_regression)
+```
+
+
+```{r}
+gala %>% ggplot2::ggplot(., aes(x = Endemics, y = Species)) +
+geom_point(colour = "blue") +
+geom_abline(intercept = coef(fit_simple_linear_regression)[1],
+    slope = coef(fit_simple_linear_regression)[2]) +
+coord_cartesian(xlim = c(0, 100), ylim = c(0, 500))
+
+coef(fit_simple_linear_regression)[2]
+cor(gala$Species, gala$Endemics) * sd(gala$Species) / sd(gala$Endemics)
+
+coef(fit_simple_linear_regression)[1]
+mean(gala$Species) - cor(gala$Species, gala$Endemics) * sd(gala$Species) / sd(gala$Endemics) * mean(gala$Endemics)
+
+```
+
+
+## Fit Multiple Linear Regression Model
+
+
+```{r}
+fit_multiple_linear_regression <- stats::lm(
+    Species ~ Area + Elevation + Nearest + Scruz  + Adjacent,
+    data = gala)
+summary(fit_multiple_linear_regression)
+
+names(fit_multiple_linear_regression)
+summary_fit_multiple_linear_regression <- summary(fit_multiple_linear_regression)
+names(summary_fit_multiple_linear_regression)
+```
+
+
+
+
+
+
+
+# make design matrix for linear regression
+matrix_design <- stats::model.matrix(
+    ~ Area + Elevation + Nearest + Scruz  + Adjacent,
+    data = gala)
+y <- gala$Species
+
+# fitted values
+fitted(fit_multiple_linear_regression)
+fit_multiple_linear_regression$fitted.values # same
+
+# residuals
+summary_fit_multiple_linear_regression$residuals
+residuals(fit_multiple_linear_regression) # same
+residuals(summary_fit_multiple_linear_regression) # same
+
+# summary statistics of residuals
+summary(summary_fit_multiple_linear_regression$residuals)
+
+# degree of freedom for SSE
+df.residual(fit_multiple_linear_regression) # 30 - 6
+
+# beta_hat_OLS
+solve(t(matrix_design) %*% matrix_design) %*% t(matrix_design) %*% y
+solve(crossprod(matrix_design, matrix_design), crossprod(matrix_design, y)) # same
+coef(fit_multiple_linear_regression) # same
+
+coef(summary_fit_multiple_linear_regression)[, 1]
+summary_fit_multiple_linear_regression$coefficients[, 1] # same
+
+# standard error of beta_hat_OLS's
+coef(summary_fit_multiple_linear_regression)[, 2]
+summary_fit_multiple_linear_regression$coefficients[, 2] # same
+sqrt(diag(summary_fit_multiple_linear_regression$cov.unscaled)) * summary_fit_multiple_linear_regression$sigma # same
+
+# confidence interval
+confint(fit_multiple_linear_regression, level = 0.95)
+coef(summary_fit_multiple_linear_regression)[, c(1, 2), drop = FALSE] %>%
+as.data.frame() %>%
+tibble::as_tibble() %>%
+dplyr::rename(se = `Std. Error`) %>%
+dplyr::mutate(
+    lower = Estimate - qt(0.025, df.residual(fit_multiple_linear_regression), lower.tail = FALSE) * se,
+    upper = Estimate + qt(0.025, df.residual(fit_multiple_linear_regression), lower.tail = FALSE) * se) %>%
+dplyr::select(-se)
+
+# t statistic
+coef(summary_fit_multiple_linear_regression)[, 3]
+coef(summary_fit_multiple_linear_regression)[, 1] / coef(summary_fit_multiple_linear_regression)[, 2]
+
+# p-value (under normality)
+coef(summary_fit_multiple_linear_regression)[, 4]
+pt(abs(coef(summary_fit_multiple_linear_regression)[, 3]), df.residual(fit_multiple_linear_regression), lower.tail = FALSE) * 2 # same
+
+# SSE
+deviance(fit_multiple_linear_regression)
+sum(summary_fit_multiple_linear_regression$residuals^2) # same
+
+# SST
+sum((y - mean(y))^2)
+(length(y)-1) * var(y) # same
+
+# SSR
+sum((mean(y) - fit_multiple_linear_regression$fitted.values)^2)
+
+# check for SST = SSE + SSR
+sum((y - mean(y))^2) == deviance(fit_multiple_linear_regression) + sum((mean(y) - fit_multiple_linear_regression$fitted.values)^2) # FALSE
+dplyr::near(
+    sum((y - mean(y))^2),
+    deviance(fit_multiple_linear_regression) + sum((mean(y) - fit_multiple_linear_regression$fitted.values)^2)
+) # TRUE
+
+# MSE; sigma^2_hat
+deviance(fit_multiple_linear_regression) / df.residual(fit_multiple_linear_regression)
+summary_fit_multiple_linear_regression$sigma^2 # same
+
+# sigma_hat
+sqrt(deviance(fit_multiple_linear_regression) / df.residual(fit_multiple_linear_regression)) # sigma_hat
+summary_fit_multiple_linear_regression$sigma # same
+
+# Multiple R-squared
+summary_fit_multiple_linear_regression$r.squared
+sum((mean(y) - fit_multiple_linear_regression$fitted.values)^2) / sum((y - mean(y))^2) # same
+
+# Adjusted R-squared
+summary_fit_multiple_linear_regression$adj.r.squared
+1 - summary_fit_multiple_linear_regression$sigma^2 / var(y) # same
+
+# Global F-test
+summary_fit_multiple_linear_regression$fstatistic
+sum((mean(y) - fit_multiple_linear_regression$fitted.values)^2) / (summary_fit_multiple_linear_regression$df[1] - 1) / summary_fit_multiple_linear_regression$sigma^2 
+pf(summary_fit_multiple_linear_regression$fstatistic[1], summary_fit_multiple_linear_regression$fstatistic[2], summary_fit_multiple_linear_regression$fstatistic[3], lower.tail = FALSE)
+
+fit_null <- stats::lm(Species ~ 1, data = gala)
+stats::anova(fit_null, fit_multiple_linear_regression)
+
+sse_null <- deviance(fit_null)
+sse_full <- deviance(fit_multiple_linear_regression)
+df_null <- df.residual(fit_null)
+df_full <- df.residual(fit_multiple_linear_regression)
+f_statistic <- ((sse_null - sse_full) / (df_null - df_full)) / (sse_full / df_full)
+f_statistic
+1 - pf(f_statistic, df_null - df_full, df_full)
+
+# permutation test
+# global F-test need the normality assumption.
+# However, permutation test does not need the normality assumption.
+```{r}
+
+```
+
+nreps <- 10000 # 충분히 크게 바꿔서 돌릴것.
+set.seed(1234)
+f_statistic_vector <- numeric(nreps)
+for (i in (1:nreps)) {
+    fit_for_permutation_test <- stats::lm(
+        sample(Species) ~ Area + Elevation + Nearest + Scruz  + Adjacent,
+        data = gala
+        )
+    f_statistic_vector[i] <- summary(fit_for_permutation_test)$fstat[1]
+}
+mean(f_statistic_vector > f_statistic)
+
+# Partial F-test
+fit_partial <- stats::lm(
+    Species ~ Nearest + Scruz + Adjacent,
+    data = gala
+)
+stats::anova(fit_partial, fit_multiple_linear_regression)
+
+sse_partial <- deviance(fit_partial)
+df_partial <- df.residual(fit_partial)
+f_statistic_partial <- ((sse_partial - sse_full) / (df_partial - df_full)) / (sse_full / df_full)
+f_statistic_partial
+1 - pf(f_statistic_partial, df_partial - df_full, df_full)
+
+# Linear hypothesis test
+fit_linear <- stats::lm(
+    Species ~ I(Area + Elevation) + Nearest + Scruz + Adjacent,
+    data = gala
+)
+
+sse_linear <- deviance(fit_linear)
+df_linear <- df.residual(fit_linear)
+f_statistic_linear <- ((sse_linear - sse_full) / (df_linear - df_full)) / (sse_full / df_full)
+f_statistic_linear
+1 - pf(f_statistic_linear, df_linear - df_full, df_full)
+
+# This is special case
+stats::anova(fit_linear, fit_multiple_linear_regression)
+c <- matrix(c(0, 1, -1, 0, 0, 0), nrow = 1)
+q <- 1
+
+f_statistic_linear <-
+    t(c %*% coef(fit_multiple_linear_regression)) %*%
+    solve(c %*% summary_fit_multiple_linear_regression$cov.unscaled %*% t(c)) %*%
+    (c %*% coef(fit_multiple_linear_regression)) / 1 / (sse_full / df_full)
+1 - pf(f_statistic_linear, q, df_full)
+
+# t-test
+fit_t <- stats::lm(
+    Species ~ Area + offset(0.3 * Elevation) + Nearest + Scruz + Adjacent,
+    data = gala
+)
+stats::anova(fit_t, fit_multiple_linear_regression)
+
+f_statistic_t <-
+    (coef(fit_multiple_linear_regression)[3] - 0.3)^2 / summary_fit_multiple_linear_regression$coef[3, 2]^2
+1 - pf(f_statistic_t, 1, df_full)
+
+pt(
+    abs((coef(fit_multiple_linear_regression)[3] - 0.3) / summary_fit_multiple_linear_regression$coef[3, 2]),
+    df_full,
+    lower.tail = FALSE
+) * 2
+
+# prediction
+predict(
+    fit_multiple_linear_regression,
+    newdata = data.frame(Area = 1, Elevation = 200, Nearest = 0.3, Scruz = 5, Adjacent = 5),
+    interval = "none"
+)
+
+predict(
+    fit_multiple_linear_regression,
+    newdata = data.frame(Area = 1, Elevation = 200, Nearest = 0.3, Scruz = 5, Adjacent = 5),
+    interval = "confidence"
+)
+
+predict(
+    fit_multiple_linear_regression,
+    newdata = data.frame(Area = 1, Elevation = 200, Nearest = 0.3, Scruz = 5, Adjacent = 5),
+    interval = "prediction"
+)
+
+set.seed(123)
+x <- rnorm(15)
+y <- x + rnorm(15)
+predict(lm(y ~ x))
+new <- data.frame(x = seq(-3, 3, 0.5))
+predict(lm(y ~ x), new, se.fit = TRUE)
+predict(lm(y ~ x), new)
+pred_prediction <- predict(lm(y ~ x), new, interval = "prediction")
+pred_confidence <- predict(lm(y ~ x), new, interval = "confidence")
+
+data_for_plot <-
+    as.data.frame(cbind(new$x, pred_prediction, pred_confidence[, -1])) %>%
+    stats::setNames(c("x", "fit", "lwr_pred", "upr_pred", "lwr_conf", "upr_conf"))
+
+data_for_plot %>%
+ggplot2::ggplot(., aes(x = x, y = fit)) +
+geom_line(lty = 1) +
+xlab("x") + ylab("y") +
+geom_line(aes(x = x, y = lwr_pred), lty = 2, colour = "red") +
+geom_line(aes(x = x, y = upr_pred), lty = 2, colour = "red") +
+geom_line(aes(x = x, y = lwr_conf), lty = 3, colour = "blue") +
+geom_line(aes(x = x, y = upr_conf), lty = 3, colour = "blue")
+
+# QR decomposition
+qr_matrix_design <- qr(matrix_design)
+q <- qr.Q(qr_matrix_design)
+r <- qr.R(qr_matrix_design)
+matrix_design
+q %*% r # same
+
+y <- gala$Species
+backsolve(r, t(q) %*% y)
+coef(fit_multiple_linear_regression) # same
+
+# The t-test and the test of the slope coefficient are exactly the same under homoscedasticity assumption
+set.seed(123)
+y1 <- rnorm(10, mean = 0, sd = 1)
+y2 <- rnorm(15, mean = 2, sd = 2)
+stats::t.test(x = y1, y = y2, alternative = "two.sided", var.equal = TRUE)
+1 / (length(y1) + length(y2) - 2) * ( (length(y1) - 1) * var(y1) + (length(y2) - 1) * var(y2))
+
+y <- c(y1, y2)
+x <- c(rep(0, length(y1)), rep(1, length(y2)))
+summary(stats::lm(y ~ x))
+summary(stats::lm(y ~ x))$sigma^2
+
+# residuals
+residuals(fit_multiple_linear_regression)
+
+# diagonal elements of hat matrix
+stats::influence(fit_multiple_linear_regression)$hat
+stats::hatvalues(fit_multiple_linear_regression)
+diag(matrix_design %*% solve(t(matrix_design) %*% matrix_design) %*% t(matrix_design))
+
+# scaled residuals are helpful to find outliers or influential obs
+# standardized residuals
+residuals(fit_multiple_linear_regression) / summary_fit_multiple_linear_regression$sigma
+
+# internal studentized residuals
+MASS::stdres(fit_multiple_linear_regression)
+stats::rstandard(fit_multiple_linear_regression)
+residuals(fit_multiple_linear_regression) / (summary_fit_multiple_linear_regression$sigma * sqrt(1 - stats::influence(fit_multiple_linear_regression)$hat))
+
+# external studentized residuals
+stats::rstudent(fit_multiple_linear_regression)
+residuals(fit_multiple_linear_regression) / (stats::influence(fit_multiple_linear_regression)$sigma * sqrt(1 - stats::influence(fit_multiple_linear_regression)$hat))
+
+# residuals vs fitted values
+# linearity, equal variance
+# check if the residuals are uniformly distributed around 0
+# without any special patterns
+plot(fit_multiple_linear_regression,
+    which = 1)
+
+tibble::tibble(Fitted = fitted(fit_multiple_linear_regression),
+    Residuals = residuals(fit_multiple_linear_regression)) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals") +
+    ggtitle("Residuals vs Fitted")
+
+plot(fit_multiple_linear_regression,
+    which = 3)
+
+tibble::tibble(Fitted = fitted(fit_multiple_linear_regression),
+    Residuals_internal_studentized_abs_sqrt = sqrt(abs(stats::rstandard(fit_multiple_linear_regression)))) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals_internal_studentized_abs_sqrt)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals_internal_studentized_abs_sqrt") +
+    ggtitle("Residuals_internal_studentized_abs_sqrt vs Fitted")
+
+# below plot is only for checking homoscedasticity
+tibble::tibble(Fitted = fitted(fit_multiple_linear_regression),
+    Residuals = residuals(fit_multiple_linear_regression)) %>%
+    dplyr::mutate(Residuals_abs_sqrt = sqrt(abs(Residuals))) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals_abs_sqrt)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals_abs_sqrt") +
+    ggtitle("Residuals_abs_sqrt vs Fitted")
+
+tibble::tibble(Fitted = fitted(fit_multiple_linear_regression),
+    Residuals = residuals(fit_multiple_linear_regression)) %>%
+    dplyr::mutate(Residuals_abs_sqrt = sqrt(abs(Residuals))) %>%
+    stats::lm(Residuals_abs_sqrt ~ Fitted, data = .) %>%
+    summary(.)
+
+# qqplot
+# normality
+# check if the points are located on a straight line
+# formal test: Shapiro-Wilk test
+plot(fit_multiple_linear_regression,
+    which = 2)
+
+qqnorm(residuals(fit_multiple_linear_regression),
+    ylab = "Residuals",
+    main = "qqplot")
+qqline(residuals(fit_multiple_linear_regression))
+shapiro.test(residuals(fit_multiple_linear_regression))
+
+tibble::tibble(Residuals = residuals(fit_multiple_linear_regression)) %>%
+    ggplot2::ggplot(., aes(sample = Residuals)) +
+    stat_qq(distribution = stats::qnorm) +
+    stat_qq_line(distribution = stats::qnorm) +
+    xlab("Theoretical Quantiles") + ylab("Residuals") +
+    ggtitle("qqplot")
+
+# independence
+n <- length(residuals(fit_multiple_linear_regression))
+tibble::tibble(Residual_after = tail(residuals(fit_multiple_linear_regression), n - 1),
+    Residual_before = head(residuals(fit_multiple_linear_regression), n - 1)) %>%
+    ggplot2::ggplot(., aes(x = Residual_before, y = Residual_after)) +
+    geom_point() +
+    geom_vline(xintercept = 0) +
+    geom_hline(yintercept = 0)
+
+tibble::tibble(Residual_after = tail(residuals(fit_multiple_linear_regression), n - 1),
+    Residual_before = head(residuals(fit_multiple_linear_regression), n - 1)) %>%
+    stats::lm(Residual_after ~ -1 + Residual_before, data = .) %>%
+    summary(.)
+
+lmtest::dwtest(formula(fit_multiple_linear_regression),
+    data = gala)
+
+# transformation
+# transforming the response variable
+MASS::boxcox(
+    fit_multiple_linear_regression,
+    plotit = TRUE
+)
+MASS::boxcox(
+    fit_multiple_linear_regression,
+    plotit = TRUE,
+    lambda = seq(0, 0.8, by = 0.1)
+)
+
+# variance-stabilizing transformation
+set.seed(123)
+x <- seq(0, 5, by = 0.1)
+beta0 <- -3
+beta1 <- 1.1
+mean <- exp(beta0 + beta1 * x)
+y <- abs(rpois(length(x), lambda = mean) + rnorm(length(x), sd = 0.5))
+y_sqrt <- sqrt(y)
+
+tibble::tibble(x = x, y = y, y_sqrt = y_sqrt) %>%
+    ggplot2::ggplot(., aes(x = x, y = y)) +
+    geom_point(colour = "blue")
+
+fit1 <- stats::lm(y ~ x)
+MASS::boxcox(
+    fit1,
+    plotit = TRUE
+)
+temp <-
+    MASS::boxcox(
+        fit1,
+        plotit = TRUE,
+        lambda = seq(-0.8, 0.8, by = 0.1)
+    )
+lambda <- temp$x[which.max(temp$y)]
+y_box_cox <- (y^lambda - 1) / lambda
+fit2 <- stats::lm(y_sqrt ~ x)
+fit3 <- stats::lm(y_box_cox ~ x)
+
+tibble::tibble(x = x, y = y, y_sqrt = y_sqrt) %>%
+    ggplot2::ggplot(., aes(x = x, y = y)) +
+    geom_point(colour = "blue") +
+    geom_abline(intercept = coef(fit1)[1], slope = coef(fit1)[2])
+
+tibble::tibble(Fitted = fitted(fit1),
+    Residuals = residuals(fit1)) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals") +
+    ggtitle("Residuals vs Fitted")
+
+tibble::tibble(x = x, y = y, y_sqrt = y_sqrt) %>%
+    ggplot2::ggplot(., aes(x = x, y = y_sqrt)) +
+    geom_point(colour = "blue") +
+    geom_abline(intercept = coef(fit2)[1], slope = coef(fit2)[2])
+
+tibble::tibble(Fitted = fitted(fit2),
+    Residuals = residuals(fit2)) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals") +
+    ggtitle("Residuals vs Fitted")
+
+tibble::tibble(x = x, y = y, y_box_cox = y_box_cox) %>%
+    ggplot2::ggplot(., aes(x = x, y = y_box_cox)) +
+    geom_point(colour = "blue") +
+    geom_abline(intercept = coef(fit3)[1], slope = coef(fit3)[2])
+
+tibble::tibble(Fitted = fitted(fit3),
+    Residuals = residuals(fit3)) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals") +
+    ggtitle("Residuals vs Fitted")
+
+# Regression diagnostic
+# leverage point
+stats::hatvalues(fit_multiple_linear_regression)
+rule_of_thumb <- 2 * mean(stats::hatvalues(fit_multiple_linear_regression))
+stats::hatvalues(fit_multiple_linear_regression) > rule_of_thumb
+stats::hatvalues(fit_multiple_linear_regression)[stats::hatvalues(fit_multiple_linear_regression) > rule_of_thumb]
+plot(
+    fit_multiple_linear_regression,
+    which = 5
+)
+
+# DFBETAS
+stats::dfbetas(fit_multiple_linear_regression)
+
+# DFFITS
+stats::dffits(fit_multiple_linear_regression)
+rule_of_thumb <- 2 * sqrt(6 / 30)
+abs(stats::dffits(fit_multiple_linear_regression)) > rule_of_thumb
+stats::dffits(fit_multiple_linear_regression)[abs(stats::dffits(fit_multiple_linear_regression)) > rule_of_thumb]
+
+# Cook's D
+stats::cooks.distance(fit_multiple_linear_regression)
+rule_of_thumb <- qf(0.5, 6, 24)
+stats::cooks.distance(fit_multiple_linear_regression) > rule_of_thumb
+stats::cooks.distance(fit_multiple_linear_regression)[stats::cooks.distance(fit_multiple_linear_regression) > rule_of_thumb]
+plot(
+    fit_multiple_linear_regression,
+    which = 4
+)
+plot(
+    fit_multiple_linear_regression,
+    which = 6
+)
+
+# Polynomial regression
+set.seed(123)
+x <- seq(-2, 2, by = 0.1)
+beta0 <- 1
+beta1 <- 1
+beta2 <- 1
+beta3 <- 1
+y <- beta0 + beta1 * x + beta2 * x^2 + beta3 * x^3 + rnorm(length(x), 50)
+fit1 <- stats::lm(y ~ x)
+tibble::tibble(x = x, y = y) %>%
+    ggplot2::ggplot(., aes(x = x, y = y)) +
+    geom_point(colour = "blue") +
+    geom_abline(
+        intercept = coef(fit1)[1],
+        slope = coef(fit1)[2]
+    )
+
+tibble::tibble(Fitted = fitted(fit1),
+    Residuals = residuals(fit1)) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals") +
+    ggtitle("Residuals vs Fitted")
+summary(fit1)
+
+fit2 <- stats::lm(y ~ stats::poly(x, degree = 2, raw = TRUE))
+tibble::tibble(x = x, y = y, predict = predict(fit2)) %>%
+    ggplot2::ggplot(., aes(x = x, y = y)) +
+    geom_point(colour = "blue") +
+    geom_line(aes(x = x, y = predict))
+
+tibble::tibble(Fitted = fitted(fit2),
+    Residuals = residuals(fit2)) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals") +
+    ggtitle("Residuals vs Fitted")
+summary(fit2)
+
+fit3 <- stats::lm(y ~ stats::poly(x, degree = 3, raw = TRUE))
+tibble::tibble(x = x, y = y, predict = predict(fit3)) %>%
+    ggplot2::ggplot(., aes(x = x, y = y)) +
+    geom_point(colour = "blue") +
+    geom_line(aes(x = x, y = predict))
+
+tibble::tibble(Fitted = fitted(fit3),
+    Residuals = residuals(fit3)) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals") +
+    ggtitle("Residuals vs Fitted")
+summary(fit3)
+
+fit3.1 <- stats::lm(y ~ stats::poly(x, degree = 3, raw = FALSE))
+tibble::tibble(x = x, y = y, predict = predict(fit3.1)) %>%
+    ggplot2::ggplot(., aes(x = x, y = y)) +
+    geom_point(colour = "blue") +
+    geom_line(aes(x = x, y = predict))
+
+tibble::tibble(Fitted = fitted(fit3.1),
+    Residuals = residuals(fit3.1)) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals") +
+    ggtitle("Residuals vs Fitted")
+
+summary(fit3)
+summary(fit3.1)
+
+fit4 <- stats::lm(y ~ stats::poly(x, degree = 4, raw = TRUE))
+tibble::tibble(x = x, y = y, predict = predict(fit4)) %>%
+    ggplot2::ggplot(., aes(x = x, y = y)) +
+    geom_point(colour = "blue") +
+    geom_line(aes(x = x, y = predict))
+
+tibble::tibble(Fitted = fitted(fit4),
+    Residuals = residuals(fit4)) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals") +
+    ggtitle("Residuals vs Fitted")
+summary(fit4)
+
+anova(fit3, fit4)
+
+fit5 <- stats::lm(y ~ stats::poly(x, degree = 5, raw = TRUE))
+tibble::tibble(x = x, y = y, predict = predict(fit5)) %>%
+    ggplot2::ggplot(., aes(x = x, y = y)) +
+    geom_point(colour = "blue") +
+    geom_line(aes(x = x, y = predict))
+
+tibble::tibble(Fitted = fitted(fit5),
+    Residuals = residuals(fit5)) %>%
+    ggplot2::ggplot(., aes(x = Fitted, y = Residuals)) +
+    geom_point() +
+    geom_hline(yintercept = 0) +
+    xlab("Fitted") + ylab("Residuals") +
+    ggtitle("Residuals vs Fitted")
+summary(fit5)
+
+anova(fit4, fit5) # 4차 까지만 하자.
+
+# ANOVA
+trt1 <- c(3129, 3000, 2865, 2890)
+trt2 <- c(3200, 3300, 2975, 3150)
+trt3 <- c(2800, 2900, 2985, 3050)
+trt4 <- c(2600, 2700, 2600, 2765)
+
+data_for_anova <-
+    tibble::enframe(
+        list(
+            trt1 = trt1,
+            trt2 = trt2,
+            trt3 = trt3,
+            trt4 = trt4
+        )
+    ) %>%
+    tidyr::unnest(cols = c("value")) %>%
+    dplyr::mutate(name = factor(name, levels = c("trt1", "trt2", "trt3", "trt4"))) %>%
+    dplyr::rename(treatment = name, y = value)
+
+data_for_anova %>%
+    ggplot2::ggplot(., aes(x = treatment, y = y)) +
+    stat_boxplot(geom = "errorbar", width = 0.5) +
+    geom_boxplot(outlier.shape = 1) +
+    scale_x_discrete(label = stringr::str_to_title(levels(data_for_anova$treatment))) +
+    xlab("Treatment") + ylab("Y") +
+    theme_bw()
+
+fit_anova <-
+    stats::aov(
+        y ~ treatment,
+        data = data_for_anova
+    )
+summary(fit_anova)
+coef(fit_anova)
+model.matrix(fit_anova)
+confint(fit_anova)
+
+fit_anova_lm <- stats::lm(y ~ treatment, data = data_for_anova)
+summary(fit_anova_lm)
+stats::anova(fit_anova_lm)
+model.matrix(fit_anova_lm)
+confint(fit_anova_lm)
+
+# factor level change
+stats::contrasts(data_for_anova$treatment)
+
+levels(data_for_anova$treatment)
+
+data_for_anova <-
+    data_for_anova %>% 
+    dplyr::mutate(treatment = factor(treatment, levels = c("trt4", "trt1", "trt2", "trt3")))
+
+stats::contrasts(data_for_anova$treatment)
+
+data_for_anova <-
+    data_for_anova %>% 
+    dplyr::mutate(treatment = factor(treatment, levels = c("trt1", "trt2", "trt3", "trt4")))
+
+stats::contrasts(data_for_anova$treatment)
+
+# contr.treatment or cont.sum
+stats::contrasts(data_for_anova$treatment)
+stats::contrasts(data_for_anova$treatment) <- stats::contr.sum
+stats::contrasts(data_for_anova$treatment)
+# stats::contrasts(data_for_anova$treatment) <- stats::contr.treatment
+# stats::contrasts(data_for_anova$treatment)
+
+fit_anova_lm_sum_to_zero <-
+    stats::lm(y ~ treatment, data = data_for_anova)
+summary(fit_anova_lm_sum_to_zero)
+stats::anova(fit_anova_lm_sum_to_zero)
+model.matrix(fit_anova_lm_sum_to_zero)
+confint(fit_anova_lm_sum_to_zero)
+
+stats::contrasts(data_for_anova$treatment) <- stats::contr.treatment
+stats::contrasts(data_for_anova$treatment)
+
+# Homogeneity
+stats::bartlett.test(y ~ treatment, data = data_for_anova)
+plot(fit_anova, which = 1)
+plot(fit_anova_lm, which = 1)
+plot(fit_anova_lm_sum_to_zero, which = 1)
+
+plot(fit_anova_lm_sum_to_zero, which = 5)
+plot(fit_anova_lm, which = 5)
+plot(fit_anova, which = 5)
+
+# Normality 
+stats::shapiro.test(residuals(fit_anova))
+stats::shapiro.test(residuals(fit_anova_lm))
+stats::shapiro.test(residuals(fit_anova_lm_sum_to_zero))
+
+plot(fit_anova, which = 2)
+plot(fit_anova_lm, which = 2)
+plot(fit_anova_lm_sum_to_zero, which = 2)
+
+# non parametric test
+stats::kruskal.test(y ~ treatment, data = data_for_anova)
+
+# Multicollinearity
+# correlation
+stats::cor(matrix_design[, -1])
+ggcorrplot::ggcorrplot(
+    stats::cor(matrix_design[, -1]),
+    method = "square"  # default: square
+)
+
+ggcorrplot::ggcorrplot(
+    stats::cor(matrix_design[, -1]),
+    method = "square",  # default: square
+    hc.order = TRUE,
+    outline.color = "white",
+    type = "lower",
+    lab = TRUE,
+    digits = 2,
+    ggtheme = ggplot2::theme_bw
+)
+
+# VIF (> 5 or 10)
+faraway::vif(matrix_design[, -1])
+car::vif(fit_multiple_linear_regression)
+
+matrix_design_without_intercept <- matrix_design[, -1]
+purrr::map_dbl(1:5,
+    ~ 1 / (1 - summary(stats::lm(matrix_design_without_intercept[, .x] ~ matrix_design_without_intercept[, -.x]))$r.squared)
+    )
+
+# condition number (> 30)
+kappa(matrix_design, exact = TRUE)
+kappa(fit_multiple_linear_regression, exact = TRUE)
+
+singularvalue <- svd(matrix_design)$d
+max(singularvalue) / min(singularvalue)
+
+eigenvalue <- eigen(t(matrix_design) %*% matrix_design)$values
+sqrt(max(eigenvalue) / min(eigenvalue))
+
+# Variable selection and model selection
+# Multiple R-squared
+summary_fit_multiple_linear_regression$r.squared
+
+# Adjusted R-squared
+summary_fit_multiple_linear_regression$adj.r.squared
+
+# Mallow's Cp
+olsrr::ols_mallows_cp(
+    fit_multiple_linear_regression,
+    fit_multiple_linear_regression
+)
+
+deviance(fit_multiple_linear_regression) / summary_fit_multiple_linear_regression$sigma^2 - nrow(gala) + 2 * (5 + 1)
+
+# Akaike Information Criterion (AIC)
+stats::logLik(fit_multiple_linear_regression)[[1]]
+- nrow(gala) / 2 * (log(deviance(fit_multiple_linear_regression) / nrow(gala)) + log(2 * pi) + 1)
+
+stats::AIC(fit_multiple_linear_regression)
+-2 * stats::logLik(fit_multiple_linear_regression)[[1]] + 2 * 7
+olsrr::ols_aic(fit_multiple_linear_regression)
+
+# Bayesian Information Criterion (BIC)
+stats::BIC(fit_multiple_linear_regression)
+-2 * stats::logLik(fit_multiple_linear_regression)[[1]] + log(nrow(gala)) * 7
+olsrr::ols_sbc(fit_multiple_linear_regression)
+
+# All possible regression
+fit_multiple_linear_regression_all <-
+    olsrr::ols_step_all_possible(fit_multiple_linear_regression)
+plot(fit_multiple_linear_regression_all)
+fit_multiple_linear_regression_all
+View(fit_multiple_linear_regression_all)
+
+# Best subsets regression
+fit_multiple_linear_regression_subset <-
+    olsrr::ols_step_best_subset(
+        fit_multiple_linear_regression,
+        metric = "aic"
+    )
+plot(fit_multiple_linear_regression_subset)
+fit_multiple_linear_regression_subset
+
+# Forward selection regression
+fit_multiple_linear_regression_forward_p <-
+    olsrr::ols_step_forward_p(fit_multiple_linear_regression, penter = 0.3, detail = TRUE) # defaula: penter = 0.3
+plot(fit_multiple_linear_regression_forward_p)
+fit_multiple_linear_regression_forward_p
+summary(stats::update(fit_multiple_linear_regression, ~ . - Nearest))
+
+fit_multiple_linear_regression_forward_aic <-
+    olsrr::ols_step_forward_aic(fit_multiple_linear_regression, detail = TRUE)
+plot(fit_multiple_linear_regression_forward_aic)
+fit_multiple_linear_regression_forward_aic
+summary(stats::update(fit_multiple_linear_regression, ~ . - Nearest - Area - Scruz))
+stats::AIC(stats::update(fit_multiple_linear_regression, ~ . - Nearest - Area - Scruz))
+
+# Backward elimination regression
+fit_multiple_linear_regression_backward_p <-
+    olsrr::ols_step_backward_p(fit_multiple_linear_regression, prem = 0.3, progress = TRUE) # defaula: prem = 0.3
+# plot(fit_multiple_linear_regression_backward_p)
+fit_multiple_linear_regression_backward_p
+summary(stats::update(fit_multiple_linear_regression, ~ . - Nearest))
+
+fit_multiple_linear_regression_backward_aic <-
+    olsrr::ols_step_backward_aic(fit_multiple_linear_regression, detail = TRUE)
+plot(fit_multiple_linear_regression_backward_aic)
+fit_multiple_linear_regression_backward_aic
+stats::AIC(stats::update(fit_multiple_linear_regression, ~ . - Nearest - Area - Scruz))
+
+# Stepwise regression
+fit_multiple_linear_regression_stepwise_p <-
+    olsrr::ols_step_both_p(fit_multiple_linear_regression, pent = 0.1, prem = 0.3, progress = TRUE) # defaula: pent = 0.1, prem = 0.3
+plot(fit_multiple_linear_regression_stepwise_p)
+fit_multiple_linear_regression_stepwise_p
+summary(stats::update(fit_multiple_linear_regression, ~ . - Nearest - Area - Scruz))
+
+fit_multiple_linear_regression_stepwise_aic <-
+    olsrr::ols_step_both_aic(fit_multiple_linear_regression, detail = TRUE)
+plot(fit_multiple_linear_regression_stepwise_aic)
+fit_multiple_linear_regression_stepwise_aic
+stats::AIC(stats::update(fit_multiple_linear_regression, ~ . - Nearest - Area - Scruz))
+
+# Random split
+ex <- data.frame(Y = c(rep("Control", 20), rep("Case", 10)))
+ex # data.frame
+ex[["Y"]] # numeric
+
+set.seed(123)
+# Simple Random Sampling
+idx_train <- caret::createDataPartition(
+    ex[["Y"]],
+    p = 0.5,
+    list = FALSE
+)
+idx_train
+ex[idx_train, ] # train
+ex[-idx_train, ] # test
+
+# Repeated Training/Test Split
+idx_train_s <- caret::createDataPartition(
+    ex[["Y"]],
+    p = 0.8,
+    time = 5,
+    list = TRUE
+)
+idx_train_s
+ex[idx_train_s[[1]], ]
+idx_train_s$Resample1
+
+# k-Fold Cross-Validation
+idx_train_k_fold <- caret::createFolds(
+    ex[["Y"]],
+    k = 10,
+    returnTrain = TRUE
+)
+idx_train_k_fold
+ex[idx_train_k_fold[[1]], ]
+idx_train_k_fold$Fold01
+
+# Repeated k-Fold Cross-Validation
+idx_train_k_fold_s <- caret::createMultiFolds(
+    ex[["Y"]],
+    k = 10,
+    times = 5
+)
+idx_train_k_fold_s
+idx_train_k_fold_s[[1]]
+idx_train_k_fold_s$Fold01.Rep1
+
+# The Bootstrap
+idx_train_bootstrap <- caret::createResample(
+    ex[["Y"]],
+    times = 5
+)
+idx_train_bootstrap
+idx_train_bootstrap[[1]]
+unique(idx_train_bootstrap[[1]])
+unique(idx_train_bootstrap$Resample1)
+ex[unique(idx_train_bootstrap[[1]]), ]
+
+# LOOCV
+idx_train_LOOCV <- caret::createFolds(
+    ex[["Y"]],
+    k = length(ex[["Y"]]),
+    returnTrain = TRUE
+)
+idx_train_LOOCV
+ex[idx_train_LOOCV[[1]], ]
+idx_train_LOOCV$Fold01
+
+# centering, scaling
+
+# example: BostonHousing dataset
+data(BostonHousing, package = "mlbench")
+BostonHousing <-
+    tibble::as_tibble(BostonHousing) %>%
+    dplyr::mutate(
+        chas = as.numeric(chas) - 1
+    )
+
+BostonHousing %>% dplyr::glimpse()
+# medv is response variable (continuous variable)
+# median value of owner-occupied homes in USD 1000's
+# chas: Charles River dummy variable (= 1 if tract bounds river; 0 otherwise)
+
+set.seed(12345)
+index_train_Boston <- caret::createDataPartition(
+    BostonHousing$medv,
+    p = 0.6,
+    list = FALSE
+)
+training <- BostonHousing[index_train_Boston, ]
+test <- BostonHousing[-index_train_Boston, ]
+
+training_sd <-
+    training %>% dplyr::select(-c("chas", "medv")) %>% apply(., 2, sd)
+training_mean <-
+    training %>% dplyr::select(-c("chas", "medv")) %>% apply(., 2, mean)
+
+training_std <-
+    (as.matrix(training %>% dplyr::select(-c("chas", "medv"))) - t(training_mean %*% t(rep(1, nrow(training))))) %*% diag(1/training_sd)
+
+training_std <-
+    training_std %>%
+    data.frame() %>%
+    dplyr::mutate(chas = training$chas, .after = "X3") %>%
+    dplyr::mutate(medv = training$medv) %>%
+    stats::setNames(colnames(training))
+
+fit_multiple_linear_regression_std <-
+    stats::lm(medv ~ ., data = training_std)
+
+summary(fit_multiple_linear_regression_std)
+
+test_std <-
+    (as.matrix(test %>% dplyr::select(-c("chas", "medv"))) - t(training_mean %*% t(rep(1, nrow(test))))) %*% diag(1/training_sd)
+
+test_std <-
+    test_std %>%
+    data.frame() %>%
+    dplyr::mutate(chas = test$chas, .after = "X3") %>%
+    dplyr::mutate(medv = test$medv) %>%
+    stats::setNames(colnames(test))
+
+predict(
+    fit_multiple_linear_regression_std,
+    newdata = test_std
+)
+
+std_info <- caret::preProcess(
+    training %>% dplyr::select(-c(medv, chas)),
+    method = c("center", "scale")
+)
+std_info
+
+predict(std_info, training)
+training_std
+
+predict(std_info, test)
+test_std
+
+# elastic net with fixed alpha
+data(BostonHousing, package = "mlbench")
+BostonHousing <-
+    tibble::as_tibble(BostonHousing) %>%
+    dplyr::mutate(
+        chas = as.numeric(chas) - 1
+    )
+
+BostonHousing %>% dplyr::glimpse()
+# medv is response variable (continuous variable)
+# median value of owner-occupied homes in USD 1000's
+# chas: Charles River dummy variable (= 1 if tract bounds river; 0 otherwise)
+
+set.seed(12345)
+index_train_Boston <- caret::createDataPartition(
+    BostonHousing$medv,
+    p = 0.6,
+    list = FALSE
+)
+training <- BostonHousing[index_train_Boston, ]
+test <- BostonHousing[-index_train_Boston, ]
+
+preprocess_params <- caret::preProcess(training %>% dplyr::select(-c(medv, chas)), method = c("center", "scale"))
+
+training_std <-
+    predict(preprocess_params, training)
+
+test_std <-
+    predict(preprocess_params, test)
+
+fit_control <- caret::trainControl(
+    method = "cv", # cv, repeatedcv, LOOCV, LGOCV, boot, none
+    number = 5, # option for cv, repeatedcv, LGOCV
+    # p = 0.75, # option for LGOCV
+    # repeats = 1, # option for repeatedcv
+    search = "grid", # grid, random
+    # classProbs = TRUE
+)
+
+set.seed(123)
+fit_elastic_net <- caret::train(
+    x = training_std %>% dplyr::select(-c("medv")) %>% as.matrix(),
+    y = training %>% dplyr::pull(c("medv")),
+    method = "glmnet",
+    trControl = fit_control,
+    tuneGrid = expand.grid(alpha = 0.5, lambda = seq(0, 1, 0.025)),
+    metric = "RMSE"
+)
+fit_elastic_net
+fit_elastic_net$results
+
+fit_elastic_net$bestTune
+
+plot(fit_elastic_net)
+
+predicted <-
+    predict(
+        fit_elastic_net,
+        newdata = test_std
+    )
+
+caret::postResample(pred = predicted, obs = test %>% dplyr::pull(c("medv")))
+sqrt(mean((predicted - test %>% dplyr::pull(c("medv")))^2)) # RMSE
+cor(predicted, test %>% dplyr::pull(c("medv")))^2 # Rsquared
+mean(abs((predicted - test %>% dplyr::pull(c("medv"))))) # MAE
+# be careful this is different from coefficient of determination
+
+
+
+
+
+
+
+
+
+
+
+
+# glmnet
+design_matrix <-
+    glmnet::makeX(
+        training %>% dplyr::select(-medv),
+        test %>% dplyr::select(-medv),
+        na.impute = TRUE
+    )
+
+set.seed(123)
+result_cv <-
+    glmnet::cv.glmnet(
+        design_matrix$x,
+        training %>% dplyr::pull(medv),
+        family = "gaussian",
+        type.measure = "mse",
+        nfolds = 5,
+        alpha = 0.5,
+        penalty.factor = c(0, rep(1, (dim(design_matrix$x)[2]-1)))
+    )
+plot(result_cv)
+coef(result_cv, s = "lambda.min")
+
+result_cv$lambda.min
+
+result_cv$nzero[result_cv$index[1, 1]] - 1
+sum(coef(result_cv, s = "lambda.min") %>% as.vector() != 0) - 2
+
+temp <-
+    as.matrix(coef(result_cv, s = "lambda.min"))[, 1]
+temp <- temp[temp != 0]
+
+result_cv$cvm[result_cv$index[1, 1]]
+
+mean(
+    (training %>% dplyr::pull(medv) - predict(result_cv, newx = design_matrix$x, s = "lambda.min"))^2
+)
+
+predict(result_cv, newx = design_matrix$xtest, s = "lambda.min")
+
+mean(
+    (test %>% dplyr::pull(medv) - predict(result_cv, newx = design_matrix$xtest, s = "lambda.min"))^2
+)
+
+# glm
+iris %>% dplyr::select(Species) %>% dplyr::distinct()
+ 
+iris_data <-
+    iris %>%
+    dplyr::filter(Species == "virginica" | Species == "versicolor")
+
+iris_data$Species
+
+iris_data <-
+    iris_data %>%
+    dplyr::mutate(
+        Species = factor(Species, levels = c("versicolor", "virginica"))
+    )
+
+iris_data$Species
+
+head(iris_data)
+
+fit_logistic <-
+    stats::glm(
+        Species ~ .,
+        data = iris_data,
+        family = "binomial"
+    )
+
+fit_logistic_null <-
+    stats::glm(
+        Species ~ 1,
+        data = iris_data,
+        family = "binomial"
+    )
+
+fit_logistic_saturated <-
+    stats::glm(
+        Species ~ factor(1:length(Species)),
+        data = iris_data,
+        family = "binomial"
+    )
+
+# summary of linear logistic regression fit
+summary(fit_logistic)
+
+# summary statistic of deviance residuals
+stats::residuals(fit_logistic, type = "deviance") %>% summary()
+
+# inverse of calculated Fisher information matrix
+stats::vcov(fit_logistic)
+
+# standard error of beta
+summary(fit_logistic)$coefficients
+diag(stats::vcov(fit_logistic)) %>% sqrt()
+
+# Residual deviance of current model
+# 2 times log-likelihood difference between saturated model and current model
+2 * (stats::logLik(fit_logistic_saturated)[1] - stats::logLik(fit_logistic)[1])
+summary(fit_logistic)$deviance
+stats::deviance(fit_logistic)
+sum(residuals(fit_logistic, type = "deviance")^2)
+
+# Deviance of saturated model
+summary(fit_logistic_saturated)$deviance # 0
+
+# Residual degrees of freedom
+# Since the number of data is 100, the number of parameters in saturated model is 100
+# Residual degrees of freedom is number of parameter difference between saturated model and current model
+stats::df.residual(fit_logistic)
+summary(fit_logistic)$df.residual
+
+# Null deviance  (only intercept model)
+summary(fit_logistic)$null.deviance
+summary(fit_logistic_null)$deviance
+stats::deviance(fit_logistic_null)
+
+# Residual degrees of freedom of null model (only intercept model)
+summary(fit_logistic)$df.null
+summary(fit_logistic_null)$df.null
+summary(fit_logistic_null)$df.residual
+
+# Log-likelihood
+stats::logLik(fit_logistic)[1]
+
+# number of parameters
+attributes(stats::logLik(fit_logistic))$df
+
+# AIC
+summary(fit_logistic)$aic
+stats::AIC(fit_logistic)
+-2 * stats::logLik(fit_logistic)[1] + 2 * attributes(stats::logLik(fit_logistic))$df
+
+# BIC
+stats::BIC(fit_logistic)
+-2 * stats::logLik(fit_logistic)[1] + log(100) * attributes(stats::logLik(fit_logistic))$df
+
+# table
+stats::anova(fit_logistic)
+stats::anova(fit_logistic, test = "Chisq")
+
+pchisq(23.772 - 11.899, 1, lower.tail = FALSE)
+
+# eta_i_hat (linear predictor)
+predict(fit_logistic, type = "link") %>% head()
+
+# mu_i_hat
+predict(fit_logistic, type = "response") %>% head()
+1 / (1 + exp(-predict(fit_logistic, type = "link") %>% head()))
+
+# various residuals from GLM
+observed <- iris_data$Species %>% head() %>% as.integer() - 1
+expected <- predict(fit_logistic, type = "response") %>% head()
+
+residuals(fit_logistic, type = "response") %>% head()
+observed - expected
+
+residuals(fit_logistic, type = "working") %>% head()
+(observed - expected) / expected
+
+residuals(fit_logistic, type = "pearson") %>% head()
+(observed - expected) / sqrt(expected * (1 - expected))
+
+residuals(fit_logistic, type = "deviance") %>% head()
+
+two_by_two_by_two <-
+    tibble::tibble(
+    y1 = c(370, 80, 180, 170),
+    y0 = c(300, 250, 400, 300),
+    x = c(1, 0, 1, 0),
+    z = c(1, 1, 0, 0)
+)
+
+two_by_two_by_two
+
+z1 <-
+    two_by_two_by_two %>% as.matrix() %>% .[1:2, 1:2]
+
+z0 <-
+    two_by_two_by_two %>% as.matrix() %>% .[3:4, 1:2]
+
+z1
+
+z0
+
+marginal <- z1 + z0
+
+marginal
+
+or_marginal <-
+    (marginal[1, 1] * marginal[2, 2] / marginal[1, 2] / marginal[2, 1])[[1]]
+log(or_marginal)
+
+or_z1 <-
+    (z1[1, 1] * z1[2, 2] / z1[1, 2] / z1[2, 1])[[1]]
+log(or_z1)
+
+or_z0 <-
+    (z0[1, 1] * z0[2, 2] / z0[1, 2] / z0[2, 1])[[1]]
+log(or_z0)
+
+fit1_logistic_in_contingency <-
+    stats::glm(
+        cbind(y1, y0) ~ x,
+        data = two_by_two_by_two,
+        family = "binomial"
+    )
+summary(fit1_logistic_in_contingency)
+
+stats::coef(fit1_logistic_in_contingency)[2]
+log(or_marginal)
+
+fit2_logistic_in_contingency <-
+    stats::glm(
+        cbind(y1, y0) ~ x + z,
+        data = two_by_two_by_two,
+        family = "binomial"
+    )
+summary(fit2_logistic_in_contingency)
+
+fit3_logistic_in_contingency <-
+    stats::glm(
+        cbind(y1, y0) ~ x + z + x:z,
+        data = two_by_two_by_two,
+        family = "binomial"
+    )
+summary(fit3_logistic_in_contingency)
+
+stats::coef(fit3_logistic_in_contingency)[4] + stats::coef(fit3_logistic_in_contingency)[2] 
+log(or_z1)
+
+stats::coef(fit3_logistic_in_contingency)[2]
+log(or_z0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

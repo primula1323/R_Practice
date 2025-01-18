@@ -1,0 +1,99 @@
+---
+title: "5장 몬테 카를로"
+output:
+  html_document:
+    number_sections: no
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, cache = FALSE, error = TRUE,
+  fig.width = 4, fig.height = 4
+)
+```
+
+```{r}
+set.seed(123)
+```
+
+# 몬테 카를로 방법 
+
+아래는 $n = 1000$개의 $(u_{1i}, u_{2i})$를 생성해 $\pi$를 추정하는 R 코드이다. 
+
+```{r}
+n <- 1000
+u1 <- runif(n, 0, 1)
+u2 <- runif(n, 0, 1)
+pi.hat <- 4 * mean(u1^2 + u2^2 < 1)
+pi.hat.sd <- 4 * sd(u1^2 + u2^2 < 1) / sqrt(n)
+c(pi.hat, pi.hat.sd)
+```
+
+중심 극한 정리에 의해 $n$이 크면 $\hat{\pi}$의 분포를  정규분포로 근사할 수 있으므로, 약 95\%의 확률로 $\pi$ 값은 구간 추정량
+$$\hat{\pi} \pm 1.96 \times sd(\hat{\pi})$$
+에 포함된다. 
+
+```{r}
+c(pi.hat - 2 * pi.hat.sd, pi.hat + 2 * pi.hat.sd)
+```
+
+
+$u\sim U(0,1)$일 때, $g(x)=4\sqrt{1-x^2}$이라 하면, 
+$$\pi=\int_0^1 g(x) dx=Eg(u)$$
+이다. 이 식을 이용해서도 $\pi$를 추정할 수 있다. 
+$$u_1, u_2, \ldots, u_n \stackrel{i.i.d}{\sim} U(0,1)$$
+라 하면 
+$$\hat{\pi} _ 2 := \frac{1}{n} \sum _ {i=1}^n g(u_i)$$
+는 $\pi$의 추정량이 된다. 
+
+$n=2000$개의 $U(0,1)$ 확률 변수들을 생성해서 $\pi$를 추정하는 코드가 아래에 있다. 
+
+```{r}
+n <- 2000
+u <- runif(n, 0, 1)
+pi.hat2 <- 4 * mean(sqrt(1 - u^2))
+pi.hat2.sd <- 4 * sd(sqrt(1 - u^2)) / sqrt(n)
+c(pi.hat2, pi.hat2.sd)
+c(pi.hat2 - 2 * pi.hat2.sd, pi.hat + 2 * pi.hat2.sd)
+```
+
+# 몬테 카를로 방법을 이용한 사후 분포의 근사
+
+다음은 압정의 에에서 몬테 카를로 방법을 수행한 R 코드이다. 
+
+```{r}
+m <- 1000
+theta <- rbeta(m, 8, 4)
+mean(theta)
+sd(theta)
+quantile(theta, c(0.025, 0.975))
+```
+
+정규 모형과 코시 사전분포 예시에서 $x=5$일 때, $\theta$의 사후 평균을 구해보자. 다음은 이를 위한 R 코드이다. 
+
+```{r}
+m <- 1000
+x <- 5
+theta <- rnorm(m, mean = x, sd = 1)
+theta.hat <- mean(theta / (1 + theta^2)) / mean(1 / (1 + theta^2))
+theta.hat
+```
+
+# 중요도 추출 
+
+## 중요도 재추출 
+
+삼각분포의 평균을 구하는 알고리듬을 구현한 R 코드는 다음과 같다. 
+
+```{r}
+m <- 1000
+theta <- runif(m, 0, 2)
+w <- ifelse(theta < 1, 2 * theta, 2 * (2 - theta))
+I.hat1 <- mean(theta * w)
+I.hat2 <- sum(theta * w) / sum(w)
+c(I.hat1, I.hat2)
+```

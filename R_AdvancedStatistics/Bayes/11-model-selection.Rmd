@@ -1,0 +1,197 @@
+---
+title: "11장 모형 선택과 진단"
+output:
+  html_document:
+    number_sections: no
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, cache = FALSE, error = TRUE, 
+    fig.width = 4, fig.height = 4)
+```
+
+```{r}
+library(rstan)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+```
+
+# 모형 확률을 이용한 모형 선택과 추론
+
+```{r}
+# set.seed(123456789)
+# n=10
+# x = rcauchy(n,10, 1)
+# x
+
+set.seed(123456789)
+n = 10
+x = c(8.559,  8.343,  8.095,  8.783,  9.748,  9.671, 10.910,  9.779, 11.121, 16.768)
+```
+
+$x_1, \ldots, x_n | \theta \sim N(\theta, 1), ~ \theta \sim N(0,1)$의 주변밀도함수 계산
+```{r}
+ssq = (n-1)*var(x)
+xbar = mean(x)
+log.f0 = -(n/2)*log(2*pi) - 0.5*log(n+1) - 0.5*ssq - (n*xbar^2/(2*(n+1)) )
+f0 = exp(log.f0)      
+log.f0;f0
+```
+
+$x_1, \ldots, x_n | \theta \sim Ca(\theta, 1), ~ \theta \sim N(0,1)$의 주변밀도함수 계산
+```{r}
+m = 1000000 
+theta = rcauchy(m, location=0, scale=1)
+integrand =numeric(m) 
+
+for(i in 1:m) {
+  integrand[i] = exp(sum( -log(pi)- log(1+(x-theta[i])^2)))
+}
+f1=mean(integrand)
+log(f1);f1
+```
+
+$x_1, \ldots, x_n | \theta \sim Exp(\theta), ~ \theta \sim Exp(1)$의 주변밀도함수 계산
+```{r}
+log.f2 = lgamma(n+1) - n* log(sum(x) +1)
+f2 = exp(log.f2)
+log.f2; f2
+```
+
+세 모형의 사후 확률 
+```{r}
+f <- c(f0, f1, f2)
+f / sum(f)
+```
+
+## 모형 평균 
+
+### 정규 모형, 스탠 
+```{r}
+normal.code <- "
+data {
+  int<lower = 1> n;  // sample size
+  vector[n] x;  //
+}
+
+parameters {
+  real theta;
+}
+
+model {
+  // Priors:
+  target += normal_lpdf(theta | 0, 1);
+  // Likelihood:
+  for(i in 1:n)
+    target += normal_lpdf(x[i] | theta, 1);
+}
+"
+
+data <- list(n = n, x = x)
+```
+
+```{r}
+normal.fit <- stan(
+    model_code = normal.code,
+    data = data,
+    seed = 1234567,
+    chains = 2,
+    iter = 2000,
+    thin = 1)
+```
+
+```{r}
+print(normal.fit)
+```
+
+### 코쉬  모형, 스탠 
+```{r}
+cauchy.code <- "
+data {
+  int<lower = 1> n;  // sample size
+  vector[n] x;  //
+}
+
+parameters {
+  real theta;
+}
+
+model {
+  // Priors:
+  target += normal_lpdf(theta | 0, 1);
+  // Likelihood:
+  for(i in 1:n)
+    target += cauchy_lpdf(x[i] | theta, 1);
+}
+"
+
+data <- list(n = n, x = x)
+```
+
+```{r}
+cauchy.fit <- stan(
+    model_code = cauchy.code,
+    data = data,
+    seed = 1234567,
+    chains = 2,
+    iter = 2000,
+    thin = 1)
+```
+
+```{r}
+print(cauchy.fit)
+```
+
+
+### 지수   모형, 스탠 
+```{r}
+exp.code <- "
+data {
+  int<lower = 1> n;  // sample size
+  vector[n] x;  //
+}
+
+parameters {
+  real lambda;
+}
+
+model {
+  // Priors:
+  target += gamma_lpdf(lambda | 1, 1);
+  // Likelihood:
+  for(i in 1:n)
+    target += exponential_lpdf(x[i] | lambda);
+}
+"
+
+data <- list(n = n, x = x)
+```
+
+```{r}
+exp.fit = stan(
+    model_code = exp.code,
+    data = data,
+    seed = 1234567,
+    chains = 2,
+    iter = 2000,
+    thin = 1)
+```
+
+```{r}
+print(exp.fit)
+```
+
+### 베이즈 모형 평균 추정량 
+
+```{r}
+delta1 <- mean(extract(normal.fit, pars = "theta")$theta)
+delta2 <- mean(extract(cauchy.fit, pars = "theta")$theta)
+delta3 <- mean(0.693 / extract(exp.fit, pars = "lambda")$lambda)
+
+sum((f / sum(f)) * c(delta1, delta2, delta3))
+```

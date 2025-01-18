@@ -1,0 +1,306 @@
+---
+title: "9장 마르코프 체인 몬테 카를로"
+output:
+  html_document:
+    number_sections: no
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, cache = FALSE, error = TRUE, 
+    fig.width = 4, fig.height = 4)
+```
+
+
+```{r}
+library(coda)
+library(dplyr)
+library(ggmcmc)
+library(rstan)
+```
+
+# 깁스 추출법 
+
+## 이변량 정규 분포 
+
+```{r}
+m = 5000 
+mu1 = 0
+mu2 = 0
+sig1 = 1
+sig2 = 1
+rho = 0.0
+```
+
+깁스 추출할 표본의 개수 $m=5000$과 $N(\mu, \Sigma)$의 파라미터들을 정했다. 
+
+```{r}
+po.theta1 = NULL
+po.theta2 = NULL
+```
+
+$\theta_1^{(1)}, \ldots, \theta_1^{(m)}$과 $\theta_2^{(1)}, \ldots, \theta_2^{(m)}$를 담을 객체 po.theta1와 
+po.theta2를 만들었다. 
+
+```{r}
+theta1 = 0
+theta2 = 0
+```
+
+$\theta_1$과 $\theta_2$의 초기값을 설정하였다. 이 코드에서 theta1과 
+theta2는 현시점 $t$에서 $\theta_1^{(t)}$와 $\theta_2^{(t)}$를 의미한다. 현재는 $t=0$를 의미한다. 
+
+```{r}
+set.seed(123)
+for(t in 1:m) {
+  cmean = mu1 + rho*sig1/sig2*(theta2 - mu2) 
+  csd = sig1*sqrt(1-rho^2)
+  theta1 = rnorm(1, cmean, csd)
+  cmean = mu2 + rho*sig2/sig1*(theta1 - mu1) 
+  csd = sig2*sqrt(1-rho^2)
+  theta2 = rnorm(1, cmean, csd)
+  po.theta1 = c(po.theta1, theta1)
+  po.theta2 = c(po.theta2, theta2) 
+}
+```
+
+깁스 추출을 m번 하는 for 문이다.
+
+```{r}
+post = data.frame(theta1 = po.theta1, theta2 = po.theta2)
+post %>% mcmc %>% summary
+```
+
+coda 패키지의 summary 함수를 이용해서 요약 통계량을 구했다. 
+
+아래는 $m= 100,000$으로 표본의 개수를 늘렸을 때 결과이다. 
+
+```{r, cache=TRUE}
+set.seed(123)
+m = 100000 
+mu1 = 0
+mu2 = 0
+sig1 = 1
+sig2 = 1
+rho = 0.0
+
+po.theta1 = NULL
+po.theta2 = NULL
+
+theta1 = 0
+theta2 = 0
+
+for(t in 1:m) {
+  cmean = mu1 + rho*sig1/sig2*(theta2 - mu2) 
+  csd = sig1*sqrt(1-rho^2)
+  theta1 = rnorm(1, cmean, csd)
+  cmean = mu2 + rho*sig2/sig1*(theta1 - mu1) 
+  csd = sig2*sqrt(1-rho^2)
+  theta2 = rnorm(1, cmean, csd)
+  po.theta1 = c(po.theta1, theta1)
+  po.theta2 = c(po.theta2, theta2) 
+}
+
+post_large = data.frame(theta1 = po.theta1, theta2 = po.theta2)
+post_large %>% mcmc %>% summary
+```
+
+추정치들이 참 값에 훨씬 더 근접하는 것을 볼 수 있다. $m$이 커지면 물론 더 정확한 값들을 얻을 수 있지만 그만큼 더 계산 시간이 오래 걸리게 되므로 적당한 타협을 해야 한다. 
+
+이제 다시 $m= 5000$인 경우로 돌아와서 깁스 표본들의 밀도 함수 추정량을 그려보자. 
+
+```{r}
+post %>% mcmc %>% ggs %>% ggs_density()
+```
+
+
+# STAN을 이용한 사후 표본의 추출
+
+## 압정 모형의 사후 표본 추출
+
+```{r}
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+```
+
+이 코드는 병렬 처리와 컴파일된 코드를 하드드라이브에 저장하기 위해 필요한 코드이다. R에서 스탠을 수행하기 전에 항상 먼저 수행하도록 한다. 
+
+```{r}
+pin.code ="
+data {
+  // data
+  int<lower=0> x;
+  int<lower=0> n;
+}
+
+parameters {
+  real<lower=0, upper=1> theta;
+}
+
+model {
+  x ~ binomial(n, theta);
+  theta ~ uniform(0,1);
+}
+"
+```
+
+위의 코드는 스탠의 코드이다. 이 코드는 세 개의 블록, 데이터 블록, 파라미터 블록, 모델 블록으로 구성되어 있다.
+
+```{r}
+x = 7
+n = 10
+data = list(x=x, n=n) 
+```
+
+데이터 블록에서 데이터로 지정한 변수들의 값들을 리스트로 묶었다. 이 값들은 스탠 코드를 컴파일할 때 스탠에게 알려줄 값들이다. 
+
+```{r}
+pin.fit = stan(model_code=pin.code, data=data, seed=1234567,  chains=4, iter=2000, thin=1)
+```
+
+여기서는 스탠 코드를 컴파일하고 사후 표본을 추출한다. 
+
+```{r}
+print(pin.fit)
+```
+
+print 명령은 사후 표본의 요약 통계량을 준다.
+
+```{r}
+plot(pin.fit, plotfun="plot")
+plot(pin.fit, plotfun="dens")
+plot(pin.fit, plotfun="trace")
+plot(pin.fit, plotfun="ac", pars="theta")
+```
+
+## 스탠의 기본 문법
+
+여기서는 스탠 코드의 기본 문법 사항들을 간략히 알아 본다. 
+
+### 코멘트
+
+스탠 코드에서  "//" 뒤는 모두 코멘트로 처리된다. 
+여러 줄로 코멘트가 이어질 때는 `/* .... */` 를 써서 코멘트를 묶을 수 있다. 
+
+### 데이터 타입
+
+데이터의 기본형(primitive types)은 real과 int가 있다. 기본형들을 기반으로  
+vector(열벡터), row\_vector(행벡터), matrix, 어레이(array)를 만들 수 있다. 
+
+```stan
+real x;
+int a;
+vector[10] x;
+matrix[3,4] y;
+
+array[10] real x;
+array[6,7] matrix[3,3] m; // 각 원소가 3x3 행렬인 6x7 어레이 
+```
+
+### 변수 범위
+
+변수의 범위는 `<lower=a, upper=b>`의 형태로 표시되어 각각 하한과 상한을 나타낸다. 
+lower, upper 하나만 써도 된다. 
+
+```stan
+int<lower = 1> N;
+real<upper = 0> log_p;
+vector<lower = -1, upper = 1>[3] rho;
+```
+
+### 확률 분포들
+
+```stan
+log(beta) ~ normal(mu, sigma);
+target += normal_lpdf(y | mu,sigma);
+```
+위의 코드는 log(beta)가 정규 분포라고 표시한다. 첫번째 줄과 같이 써도 되고, 두번째 줄은 사후 밀도 함수가 사전 분포와 관측치 분포의 곱으로 표시되는 사실에 착안해서 로그 사후 밀도 함수에  로그 정규 밀도 함수를 더해주어야 한다는 것을 표시한다. 두 명령어는 동일한 효과를 갖는다. 
+
+```stan
+log(beta) ~ normal(mu, sigma) T[-0.5, 2.1]; 
+```
+위의 코드는 [-0.5, 2.1]에 제한된 정규분포를 나타낸다. 아래는 스탠에서 쓰이는 확률 분포들을 나타낸다. 이것들 외에 많은 분포들을 표시할 수 있다. 
+
+```stan
+y ~ exponential(beta); 
+y ~ gamma(alpha, beta); 
+y ~ bernoulli(theta); 
+n ~ binomial(N, theta);
+y ~ poisson(3.7);
+```
+
+# 마르코프 체인의 수렴 진단
+
+## 그림을 통한 수렴 진단
+
+### 깁스 표본의 시계열 그림
+
+post는 이변량 정규분포를 불변분포로 갖는 깁스 표본을 담은 데이터프레임이라 하자. 깁스 표본의 시계열 그림을 보고 불변 분포에 수렴했는지 아직 수렴했다고 보기 힘든지 파악할 수 있다. 
+
+```{r}
+post %>% mcmc %>% ggs %>% ggs_traceplot()
+```
+
+은 깁스 표본의 트레이스 그림 혹은 시계열 그림을 보여주는 R 코드이다. 
+
+### 자기 상관계수 그림
+
+```{r}
+post %>% mcmc %>% ggs %>% ggs_autocorrelation()
+```
+
+은 깁스 표본의 자기 상관 계수  그림을 보여주는 R 코드이다. 
+
+### 누적합 그림
+
+```{r}
+post %>% mcmc %>% ggs %>%ggs_running()
+```
+
+위의 코드는 $E(\theta_1)$와 $E(\theta_2)$의 $t$에 따른 누적 평균 즉 
+$$\frac{1}{t} \sum_{j=1}^t \theta_i^{(j)}, ~ i=1,2$$
+를 $t$에 따른 시계열 그림으로 그린 것이다. 
+
+## 마르코프 체인의 수렴성 검정
+
+### Geweke 검정
+
+```{r}
+str(post)
+```
+post는 5000개의 깁스 표본을 포함하는 데이터프레임이다. 
+
+다음은 coda 패키지의 geweke.diag( )와 geweke.plot( )을 이용한 검정이다.  
+```{r}
+post %>% mcmc %>% geweke.diag()
+```
+$\theta_1$과 $\theta_2$에 대한 검정 통계량 값이 주어져 있다. 
+
+이 값은 체인이 수렴했다는 가정하에서 표준 정규 분포를 따른다. $\alpha = 0.05$를 사용해서 위의 통계량 값이 $z_{\alpha/2} = 1.96$ 보다 크다면 체인이 수렴했다고 보기 어렵다. 여기서는 두 값 모두 $z_{\alpha/2} = 1.96$ 보다 많이 작으므로 수렴하지 않았다고 말하기 힘들다. 
+
+```{r}
+post %>% mcmc %>% geweke.plot()
+```
+
+### 하이델버거-웰치 검정
+
+```{r}
+post %>% mcmc %>% heidel.diag()
+```
+
+### 라프테리-루이스 검정
+
+```{r}
+post %>% mcmc %>% raftery.diag() 
+```
+
+### 겔만-루빈 검정
+
+```{r}
+pin.fit %>% As.mcmc.list() %>% gelman.diag()
+```
+

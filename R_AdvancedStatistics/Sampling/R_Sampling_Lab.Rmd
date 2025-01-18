@@ -1,0 +1,804 @@
+---
+title: "R_Sampling_Lab"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+```
+
+---
+
+# Lab1
+
+name_pkg <- c("survey", "foreign")
+name_pkg <- unique(name_pkg)
+
+bool_nopkg <- !name_pkg %in% rownames(installed.packages())
+if (sum(bool_nopkg) > 0) {
+  install.packages(name_pkg[bool_nopkg])
+}
+invisible(lapply(name_pkg, library, character.only = T))
+
+
+?api
+data(api)
+sum(apisrs$stype == 'E'); sum(apisrs$stype == 'M'); sum(apisrs$stype == 'H')
+sum(apistrat$stype == 'E'); sum(apistrat$stype == 'M'); sum(apistrat$stype == 'H')
+
+
+srs_design <- svydesign(id=~1, fpc=~fpc, data=apisrs) #fpc : finite population correction
+srs_design
+
+svytotal(~enroll, srs_design)
+svymean(~enroll, srs_design)
+
+summary(apisrs$fpc)
+
+N = 6194; n = 200; s2 = var(apisrs$enroll)
+se = sqrt((s2 / n) * ((N-n) / N)) # Note that N instead of N-1
+se
+
+
+nofpc <- svydesign(id=~1, weights=~pw, data=apisrs)
+nofpc
+
+svytotal(~enroll, nofpc)
+svymean(~enroll, nofpc)
+
+summary(apisrs$pw)
+
+se_nofpc = sqrt(s2 / n)
+se_nofpc
+
+
+means <- svymean(~api00+api99, srs_design)
+means
+
+# The next two lines give the same result.
+
+svycontrast(means, c(api00=1, api99=-1))
+svycontrast(means, quote(api00-api99))
+
+srs_design <- update(srs_design, apidiff=api00-api99)
+srs_design <- update(srs_design, apidct=apidiff/api99)
+svymean(~apidiff+apidct, srs_design)
+
+
+strat_design <- svydesign(id=~1, strata=~stype, fpc=~fpc, data=apistrat)
+strat_design
+
+svytotal(~enroll, strat_design)
+svymean(~enroll, strat_design)
+
+summary(as.factor(apistrat$fpc))
+svytotal(~stype, strat_design)
+
+
+summary(apistrat[apistrat$stype == 'E',]$pw)
+summary(apistrat[apistrat$stype == 'M',]$pw)
+summary(apistrat[apistrat$stype == 'H',]$pw)
+
+chis_adult <- read.dta('adult.dta')
+summary(chis_adult$rakedw0)
+
+
+strat_design_2 <- svydesign(id=~1, strata=~stype, weights=~pw, data=apistrat)
+
+
+BRR is not applicable to sampling design with fpc applied.
+
+
+
+boot_design <- as.svrepdesign(strat_design, type='bootstrap', replicates=100)
+BRR_design <- as.svrepdesign(strat_design_2, type='BRR')
+
+boot_design
+BRR_design
+
+svymean(~enroll, strat_design)
+svymean(~enroll, boot_design)
+svymean(~enroll, BRR_design)
+
+
+chis <- svrepdesign(variables=chis_adult[,1:418],
+                    repweights=chis_adult[,420:499],
+                    weights=chis_adult[,419], combined.weights=TRUE,
+                    type='other', scale=1, rscales=1)
+
+
+emerg_high <- subset(strat_design, emer>20)
+emerg_low <- subset(strat_design, emer==0)
+
+svymean(~api00+api99, emerg_high)
+svymean(~api00+api99, emerg_low)
+
+svytotal(~enroll, emerg_high)
+svytotal(~enroll, emerg_low)
+
+
+bys <- svyby(~bmi_p, ~srsex+racehpr, svymean, design=chis, keep.names=FALSE)
+print(bys, digits=3)
+
+
+---
+
+# Lab2
+
+name_pkg <- c("survey", "sampling", "SDAResources")
+name_pkg <- unique(name_pkg)
+bool_nopkg <- !name_pkg %in% rownames(installed.packages())
+if (sum(bool_nopkg) > 0) {
+  install.packages(name_pkg[bool_nopkg])
+}
+invisible(lapply(name_pkg, library, character.only = T)) # load multiple packages
+
+
+########## Allocation Methods ##########
+
+data(agpop)  # load the data set
+names(agpop) # list the variable names
+head(agpop)  # take a look at the first 6 obsns
+nrow(agpop)  #number of rows, 3078
+unique(agpop$region) # take a look at the four regions, NC, NE, S, W
+table(agpop$region)  # number of counties in each stratum
+
+### Proportional allocation
+
+popsize <- table(agpop$region)
+propalloc <- 300*popsize/sum(popsize)
+propalloc
+# Round to nearest integer
+propalloc_int <- round(propalloc)
+propalloc_int
+sum(propalloc_int) # check that stratum sample sizes sum to 300
+
+### Neyman allocation
+
+stratvar <- c(1.1,0.8,1.0,2.0) 
+# Make sure the stratum variances in stratvar are in same 
+#  order as the table in popsize
+neymanalloc <- 300*(popsize*sqrt(stratvar))/sum(popsize*sqrt(stratvar))
+neymanalloc
+neymanalloc_int <- round(neymanalloc)
+neymanalloc_int
+sum(neymanalloc_int)
+
+### Optimal allocation
+
+relcost <- c(1.4,1.0,1.0,1.8) 
+# Make sure the relative costs in relcost are in same 
+# order as the table in popsize
+optalloc <- 300*(popsize*sqrt(stratvar/relcost))/sum(popsize*sqrt(stratvar/relcost))
+optalloc
+optalloc_int <- round(optalloc)
+optalloc_int
+sum(optalloc_int)
+
+########## Selecting a Stratified Random Sample ##########
+
+### Use the sample function with each stratum
+
+# Select an SRS without replacement from each region with proportional allocation
+# with total size n=300 
+regionname <- c("NC","NE","S","W")
+# Make sure sampsize has same ordering as regionname
+sampsize <- c(103,21,135,41)
+# Set the seed for random number generation
+set.seed(108742)
+index <- NULL
+N <- nrow(agpop)
+for (i in 1:length(sampsize)) {
+  index <- c(index,sample((1:N)[agpop$region==regionname[i]],
+                          size=sampsize[i],replace=F))
+}
+strsample<-agpop[index,]
+# Check that we have the correct stratum sample sizes
+table(strsample$region)
+# Print the first six rows of the sample to see
+strsample[1:6,]
+
+### Use the strata function from the sampling package
+
+# Sort the population by stratum
+agpop2<-agpop[order(agpop$region),]
+# Use the strata function to select the units for the sample
+# Make sure size argument has same ordering as the stratification variable
+index2<-strata(agpop2,stratanames=c("region"),size=c(103,21,135,41), 
+               method="srswor")
+table(index2$region)  # look at number of counties selected within each region
+head(index2)
+strsample2<-getdata(agpop2,index2) # extract the sample
+head(strsample2)
+
+# Calculate the sampling weights
+# First check that no probabilities are 0 
+sum(strsample2$Prob<=0) 
+strsample2$sampwt<-1/strsample2$Prob
+# Check that the sampling weights sum to the population sizes for each stratum
+tapply(strsample2$sampwt,strsample2$region,sum)
+
+########## Computing Statistics from a Stratified Random Sample ##########
+
+data(agstrat)
+names(agstrat)  # list the variable names
+agstrat[1:6,1:8] # take a look at the first 6 obsns from columns 1 to 8
+nrow(agstrat)  # number of rows, 300
+unique(agstrat$region) # take a look at the four regions, NC, NE, S, W
+table(agstrat$region)  # number of counties in each stratum
+# check that the sum of the weights equals the population size
+sum(agstrat$strwt)  #3078
+
+### Draw a boxplot of the stratified random sample
+
+boxplot(acres92/10^6 ~ region, xlab = "Region", ylab = "Millions of Acres",
+        data = agstrat)
+# notice the large variability in western region
+
+### Set up information for the survey design
+
+# create a variable containing population stratum sizes, for use in fpc (optional)
+# popsize_recode gives popsize for each stratum
+popsize_recode <- c('NC' = 1054, 'NE' = 220, 'S' = 1382, 'W' = 422)
+# next statement substitutes 1054 for each 'NC', 220 for 'NE', etc.
+agstrat$popsize <- popsize_recode[agstrat$region]
+table(agstrat$popsize)  #check the new variable
+# input design information for agstrat
+dstr <- svydesign(id = ~1, strata = ~region, weights = ~strwt, fpc = ~popsize, 
+                  data = agstrat) 
+dstr 
+
+### Calculate the statistics using the design object
+
+# calculate mean, SE and confidence interval
+smean<-svymean(~acres92, dstr)
+smean
+confint(smean, level=.95, df=degf(dstr)) # note that df = n-H = 300-4
+# calculate total, SE and CI
+stotal<-svytotal(~acres92, dstr)
+stotal
+degf(dstr) # Show the degrees of freedom for the design
+# calculate confidence intervals using the degrees of freedom
+confint(stotal, level=.95,df= degf(dstr))
+
+### Alternative design specifications
+
+# Get same result if omit weights argument since weight = popsize/n_h
+dstrfpc <- svydesign(id = ~1, strata = ~region, fpc = ~popsize, data = agstrat)
+svymean(~acres92, dstrfpc)
+# If you include weights but not fpc, get SE without fpc factor
+dstrwt <- svydesign(id = ~1, strata = ~region, weights = ~strwt, data = agstrat) 
+svymean(~acres92, dstrwt)
+
+### Calculating stratum means and variances
+
+# calculate mean and se of acres92 by regions
+svyby(~acres92, by=~region, dstr, svymean, keep.var = TRUE)
+# calculate total and se of acres92 by regions
+svyby(~acres92, ~region, dstr, svytotal, keep.var = TRUE)
+
+# formula calculations, using tapply
+# variables sampsize and popsize were calculated earlier in the chapter
+# calculate mean within each region
+strmean<-tapply(agstrat$acres92,agstrat$region,mean) 
+strmean
+# calculate variance within each region
+strvar<-tapply(agstrat$acres92,agstrat$region,var) 
+strvar
+# verify standard errors by direct formula
+strse<- sqrt((1-sampsize/popsize)*strvar/sampsize)
+# same standard errors as from svyby
+strse
+
+####### Estimating proportions from a stratified random sample #######
+
+### Option 1: Use a 0-1 variable and find its mean
+# Create variable lt200k
+agstrat$lt200k <- rep(0,nrow(agstrat))
+agstrat$lt200k[agstrat$acres92 < 200000] <- 1
+# Rerun svydesign because the data set now has a new variable
+dstr <- svydesign(id = ~1, strata = ~region, fpc = ~popsize,
+                  weights = ~strwt, data = agstrat) 
+# calculate proportion, SE and confidence interval
+smeanp<-svymean(~lt200k, dstr)
+smeanp
+confint(smeanp, level=.95,df=degf(dstr)) 
+# calculate total, SE and CI
+stotalp<-svytotal(~lt200k, dstr)
+stotalp
+confint(stotalp, level=.95,df=degf(dstr))
+
+### Option 2: Create a factor variable lt200kf
+agstrat$lt200kf <- factor(agstrat$lt200k)
+# Rerun svydesign because the data set now has a new variable
+dstr <- svydesign(id = ~1, strata = ~region, fpc = ~popsize,
+                  weights = ~strwt, data = agstrat) 
+# calculate proportion, SE and confidence interval
+smeanp2<-svymean(~lt200kf, dstr)
+smeanp2
+confint(smeanp2, level=.95,df=degf(dstr)) 
+# calculate total, SE and CI
+stotalp2<-svytotal(~lt200kf, dstr)
+stotalp2
+confint(stotalp2, level=.95,df=degf(dstr))
+
+### Option 3: Construct asymmetric confidence intervals
+# calculate proportion and confidence interval with svyciprop
+svyciprop(~I(lt200k==1), dstr, method="beta")
+
+---
+
+# Lab3
+
+name_pkg <- c("survey", "sampling", "SDAResources")
+name_pkg <- unique(name_pkg)
+bool_nopkg <- !name_pkg %in% rownames(installed.packages())
+if (sum(bool_nopkg) > 0) {
+  install.packages(name_pkg[bool_nopkg])
+}
+invisible(lapply(name_pkg, library, character.only = T)) # load multiple packages
+
+
+########## Ratio Estimation ##########
+
+##### Examples 4.2 and 4.3
+
+data(agsrs)
+n<-nrow(agsrs) #300
+agsrs$sampwt <- rep(3078/n,n)
+agdsrs <- svydesign(id = ~1, weights=~sampwt, fpc=rep(3078,300), data = agsrs)
+agdsrs
+# correlatIon of acres87 and acres92
+cor(agsrs$acres87,agsrs$acres92) 
+# estimate the ratio acres92/acres87
+sratio<-svyratio(numerator = ~acres92, denominator = ~acres87,design = agdsrs)
+sratio
+confint(sratio, df=degf(agdsrs))
+
+# provide the population total of x
+xpoptotal <- 964470625
+# Ratio estimate of population total
+predict(sratio,total=xpoptotal)
+# Ratio estimate of population mean
+predict(sratio,total=xpoptotal/3078)
+
+# draw the scatterplot
+par(las=1) # make tick mark labels horizontal (optional)
+plot(x=agsrs$acres87/1e6,y=agsrs$acres92/1e6, 
+     xlab="Millions of Acres Devoted to Farms (1987)",
+     ylab = "Millions of Acres Devoted to Farms (1992)",
+     main = "Acres Devoted to Farms in 1987 and 1992")
+# draw line through origin with slope Bhat
+abline(0,coef(sratio))
+
+##### Example 4.5
+
+# scatterplot and correlation of seed92 and seed94
+data(santacruz)
+plot(santacruz$seed92,santacruz$seed94,
+     main="Number of seedlings in 1994 and 1992",
+     xlab="Number of seedlings in 1992",ylab="Number of seedlings in 1994")
+cor(santacruz$seed92,santacruz$seed94)
+
+nrow(santacruz) #10
+santacruz$sampwt <- rep(1,nrow(santacruz)) 
+design0405 <- svydesign(ids = ~1, weights = ~sampwt, data = santacruz)
+design0405
+#Ratio estimation using number of seedlings of 1992 as auxiliary variable
+sratio3<-svyratio(~seed94, ~seed92,design = design0405)
+sratio3
+confint(sratio3, df=10-1)
+
+########## Regression Estimation ##########
+
+##### Example 4.7
+
+data(deadtrees)
+head(deadtrees)
+nrow(deadtrees) # 25
+# Fit with survey regression
+dtree<- svydesign(id = ~1, weight=rep(4,25), fpc=rep(100,25), data = deadtrees)
+myfit1 <- svyglm(field~photo, design=dtree) 
+summary(myfit1) # displays regression coefficients
+confint(myfit1,df=23) # df = 25-2
+# Regression estimate of population mean field trees
+newdata <- data.frame(photo=11.3)
+predict(myfit1, newdata)
+confint(predict(myfit1, newdata),df=23)
+# Estimate total field tree, add population size in total= argument
+newdata2 <- data.frame(photo=1130)
+predict(myfit1, newdata2, total=100)  
+confint(predict(myfit1, newdata2,total=100),df=23)
+
+
+########## Ratio Estimation with Stratified Sampling ##########
+
+##### Combined ratio estimator
+
+data(agstrat)
+popsize_recode <- c('NC' = 1054, 'NE' = 220, 'S' = 1382, 'W' = 422)
+agstrat$popsize <- popsize_recode[agstrat$region]
+# input design information for agstrat
+dstr <- svydesign(id = ~1, strata = ~region, fpc = ~popsize, weight = ~strwt, 
+                  data = agstrat) 
+# now compute the combined estimator of the ratio
+combined<-svyratio(~ acres92,~acres87,design = dstr)
+combined
+# we can get the combined ratio estimator of the population total 
+# with the predict function
+predict(combined,total=964470625)
+
+##### Separate ratio estimator
+
+separate<-svyratio(~acres92,~acres87,design = dstr,separate=TRUE)
+separate
+#  Define the stratum totals for acres87 as a list:
+stratum.xtotals <- list(NC=350474227,NE=22033421,S=280631939,W=311331038)
+predict(separate,stratum.xtotals)
+
+---
+
+# Lab4
+
+name_pkg <- c("survey", "sampling", "SDAResources")
+name_pkg <- unique(name_pkg)
+bool_nopkg <- !name_pkg %in% rownames(installed.packages())
+if (sum(bool_nopkg) > 0) {
+  install.packages(name_pkg[bool_nopkg])
+}
+invisible(lapply(name_pkg, library, character.only = T)) # load multiple packages
+
+
+########## Estimates from One-Stage Cluster Samples ##########
+
+##### Example 5.2
+
+data(gpa)
+# define one-stage cluster design
+# note that id is suite instead of individual student as we take an SRS of suites
+dgpa<-svydesign(id=~suite,weights=~wt,fpc=~rep(100,20),data=gpa) 
+dgpa  
+# estimate mean and se
+gpamean<-svymean(~gpa,dgpa)
+gpamean
+degf(dgpa)
+# n=5, t-approximation is suggested for CI
+confint(gpamean,level=.95,df=4) # use t-approximation
+# confint(gpamean,level=.95) # uses normal approximation, if desired (for large n) 
+# estimate total and se (if desired)
+gpatotal<-svytotal(~gpa,dgpa)
+gpatotal
+confint(gpatotal,level=.95,df=4)
+
+# you can also calculate SEs by direct formula
+suitesum<-tapply(gpa$gpa,gpa$suite,sum)  #sum gpa for each suite
+# variability comes from among the suites
+st2<-var(suitesum) 
+st2
+# SE of t-hat, formula (5.3) of SDA
+vthat <-100^2*(1-5/100)*st2/5
+sqrt(vthat) 
+# SE of ybar, formula (5.6) of SDA
+sqrt(vthat)/(4*100)
+
+##### Example 5.6
+
+data(algebra)
+algebra$sampwt<-rep(187/12,299)
+# define one-stage cluster design
+dalg<-svydesign(id=~class,weights=~sampwt,fpc=~rep(187,299), data=algebra) 
+dalg
+# estimate mean and se
+svymean(~score,dalg)
+# n=12, t-distribution is suggested for CI
+degf(dalg)
+confint(svymean(~score,dalg),level=.95,df=11) #use t-approximation
+# estimate total and se if desired
+svytotal(~score,dalg)
+confint(svytotal(~score,dalg),level=.95,df=11)
+
+########## Estimates from Multi-Stage Cluster Samples ##########
+
+##### Example 5.8
+
+data(coots)
+# Want to estimate the mean egg volume
+nrow(coots) #368
+coots$ssu<-rep(1:2,184) # index of ssu
+coots$relwt<-coots$csize/2
+head(coots)
+dcoots<-svydesign(id=~clutch+ssu,weights=~relwt,data=coots)
+dcoots
+svymean(~volume,dcoots)  #ratio estimator
+confint(svymean(~volume,dcoots),level=.95,df=183)
+
+######## 이 부분은 왜 그런지 각자 생각해보세요 #########
+# now only include psu information, results are the same
+dcoots2<-svydesign(id=~clutch,weights=~relwt,data=coots)
+dcoots2
+svymean(~volume,dcoots2)  
+########################################################
+
+
+##### Example 5.7
+
+### With-replacement variance
+
+data(schools)
+head(schools)
+# calculate with-replacement variance; no fpc argument
+# include psu variable in id; include weights
+dschools<-svydesign(id=~schoolid,weights=~finalwt,data=schools)
+# dschools tells you this is treated as a with-replacement sample
+dschools
+mathmean<-svymean(~math,dschools)
+mathmean
+degf(dschools) 
+# use t distribution for confidence intervals because there are only 10 psus
+confint(mathmean,df=degf(dschools))
+# estimate proportion and total number of students with mathlevel=2
+svymean(~factor(mathlevel),dschools)
+svytotal(~factor(mathlevel),dschools)
+
+### Without-replacement variance
+
+# create a variable giving each student an id number
+schools$studentid<-1:(nrow(schools))
+# calculate without-replacement variance 
+# specify both stages of the sample in the id argument
+# give both sets of population sizes in the fpc argument
+# do not include the weight argument
+dschoolwor<-svydesign(id=~schoolid+studentid,fpc=~rep(75,nrow(schools))+Mi,
+                      data=schools)
+dschoolwor
+mathmeanwor<-svymean(~math,dschoolwor)
+mathmeanwor
+confint(mathmeanwor,df=degf(dschoolwor))
+# estimate proportion and total number of students with mathlevel=2
+svymean(~factor(mathlevel),dschoolwor)
+svytotal(~factor(mathlevel),dschoolwor)
+
+---
+
+# Lab5
+
+name_pkg <- c("survey", "sampling", "SDAResources")
+name_pkg <- unique(name_pkg)
+bool_nopkg <- !name_pkg %in% rownames(installed.packages())
+if (sum(bool_nopkg) > 0) {
+  install.packages(name_pkg[bool_nopkg])
+}
+invisible(lapply(name_pkg, library, character.only = T)) # load multiple packages
+
+
+########## Selecting a Sample with Unequal Probabilities ##########
+
+##### Example 6.2
+
+data(classes)
+classes[1:2,]
+N<-nrow(classes)
+set.seed(78065)
+# select 5 classes with probability proportional to class size and with replacement
+sample_units<-sample(1:N,5,replace=TRUE,prob=classes$class_size)
+sample_units
+mysample<-classes[sample_units,]  
+mysample  
+# calculate ExpectedHits and sampling weights
+mysample$ExpectedHits<-5*mysample$class_size/sum(classes$class_size)
+mysample$SamplingWeight<-1/mysample$ExpectedHits
+mysample$psuid<-row.names(mysample)
+mysample
+# check sum of sampling weights
+sum(mysample$SamplingWeight)  
+
+# sampling without replacement
+set.seed(330582)
+cluster(data=classes, clustername=c("class"), size=5, method="systematic",
+        pik=classes$class_size,description=TRUE)
+
+########## Selecting a Two-Stage Cluster Sample ##########
+
+##### Example 6.11
+
+# create data frame classeslong
+data(classes)
+classeslong<-classes[rep(1:nrow(classes),times=classes$class_size),]
+classeslong$studentid <- sequence(classes$class_size) 
+nrow(classeslong)
+table(classeslong$class) # check class sizes
+head(classeslong)
+
+# select a two-stage cluster sample, psu: class, ssu: studentid 
+# number of psus selected: n = 5 (pps systematic)
+# number of students selected: m_i = 4 (srs without replacement)
+# problist<-list(classes$class_size/647) # same results as next command
+problist<-list(classes$class_size/647,4/classeslong$class_size) #selection prob
+problist[[1]]  # extract the first object in the list. This is pps, size M_i/M
+problist[[2]][1:5] # first 5 values in second object in list
+# number of psus and ssus
+n<-5
+numberselect<-list(n,rep(4,n))
+numberselect
+# two-stage sampling
+set.seed(75745)
+tempid<-mstage(classeslong,stage=list("cluster","stratified"), 
+               varnames=list("class","studentid"),
+               size=numberselect, method=list("systematic","srswor"),pik=problist)
+
+# get data
+sample1<-getdata(classeslong,tempid)[[1]]
+# sample 1 contains the ssus of the 5 psus chosen at the first stage
+# Prob_ 1 _stage has the first-stage selection probabilities
+head(sample1) 
+nrow(sample1)
+table(sample1$class) # lists the psus selected in the first stage
+sample2<-getdata(classeslong,tempid)[[2]]
+# sample 2 contains the final sample
+# Prob_ 2 _stage has the second-stage selection probabilities
+# Prob has the final selection probabilities
+head(sample2)  
+nrow(sample2) # sample of 20 ssus altogether
+table(sample2$class) # 4 ssus selected from each psu
+# calculate final weight = 1/Prob
+sample2$finalweight<-1/sample2$Prob
+# check that sum of final sampling weights equals population size
+sum(sample2$finalweight)
+sample2[,c(1,2,3,6,7)] # print variables from final sample
+
+
+########## Computing Estimates from an Unequal-Probability Sample ##########
+
+##### Example 6.4
+
+studystat <- data.frame(class = c(12, 141, 142, 5, 1),
+                        Mi = c(24, 100, 100, 76, 44), 
+                        tothours=c(75,203,203,191,168))
+studystat$wt<-647/(studystat$Mi*5)
+sum(studystat$wt) # check weight sum, which estimates N=15 psus
+# design for with-replacement sample, no fpc argument
+d0604 <- svydesign(id = ~1, weights=~wt, data = studystat)
+d0604
+# Ratio estimation using Mi as auxiliary variable
+ratio0604<-svyratio(~tothours, ~Mi,design = d0604)
+ratio0604
+confint(ratio0604, level=.95,df=4)
+# Can also estimate total hours studied for all students in population
+svytotal(~tothours,d0604)
+
+##### Example 6.6
+
+students <- data.frame(class = rep(studystat$class,each=5),
+                       popMi = rep(studystat$Mi,each=5), 
+                       sampmi=rep(5,25),
+                       hours=c(2,3,2.5,3,1.5,2.5,2,3,0,0.5,3,0.5,1.5,2,3,1,2.5,3,5,2.5,4,4.5,3,2,5))
+# The 'with' function allows us to calculate using variables from a data frame
+# without having to type the data frame name for all of them
+students$studentwt <- with(students,(647/(popMi*5)) * (popMi/sampmi))
+# check the sum of the weights
+sum(students$studentwt)
+# create the design object
+d0606 <- svydesign(id = ~class, weights=~studentwt, data = students)
+d0606
+# estimate mean and SE
+svymean(~hours,d0606)
+degf(d0606) 
+confint(svymean(~hours,d0606),level=.95,df=4) #use t-approximation
+
+# estimate total and SE
+svytotal(~hours,d0606)
+confint(svytotal(~hours,d0606),level=.95,df=4)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

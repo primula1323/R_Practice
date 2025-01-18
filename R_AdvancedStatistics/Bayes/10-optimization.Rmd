@@ -1,0 +1,48 @@
+---
+title: "10장 최적화를 통한 베이즈 계산"
+output:
+  html_document:
+    number_sections: no
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+---
+
+# EM 알고리듬
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = TRUE, cache = FALSE, error = TRUE, 
+    fig.width = 4, fig.height = 4)
+```
+
+```{r} 
+genetic.linkage <- function(y=c(125, 18, 20, 34), theta0=0.5,
+ tol=10^(-9), max.iteration= 50)
+ {
+    iteration <- 0
+    err <- tol + 1
+    old.theta <- theta0
+    new.theta <- theta0
+    cat("iteration    ", "theta      ", "error      ", "\n")
+    while (err > tol)
+    {
+        iteration <- iteration + 1
+        old.theta <- new.theta
+        new.theta <- (y[1]*(old.theta/(2+old.theta)) + y[4])/
+            (y[1]*(old.theta/(2+old.theta)) + y[2]+y[3]+y[4])
+        err <- abs(old.theta - new.theta)
+        cat(iteration, new.theta, err, "\n", sep="     ")
+        if(iteration > max.iteration) break
+    }
+
+    new.theta
+}
+```
+
+
+```{r}
+genetic.linkage()
+```
+

@@ -1,0 +1,194 @@
+---
+title: "해밀턴 몬테 카를로 실습"
+author: "이재용"
+date: "2022.11.15"
+output:
+  html_document:
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+  github_document: 
+    toc: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+---
+
+# 노트 
+
+220701. 방통대 실습을 위해 작성하였다. 
+221115. 전북대 강의를 위해 추가하였다. 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE, error=TRUE)
+Sys.setlocale(category = "LC_CTYPE", locale = "ko_KR.UTF-8")
+library(ggplot2)
+theme_set(theme_grey(base_family = "AppleGothic"))
+```
+
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(coda)
+library(ggmcmc)
+library(rhmc) #hmc()
+library(hmclearn) #hmc, mh
+
+set.seed(123456789)
+```
+
+# 두 개의 봉우리를 가진 목표 밀도함수: 직접 코딩  
+
+목표 밀도함수의 개형 
+\[ \pi(\theta) = e^{-\theta^2 (\theta -d)^2}, ~ \theta \in \mathbf{R}, ~ d > 0. \]
+```{r}
+d=2
+theta = seq(from=-2, to=6, length.out = 100)
+f = exp( - theta^2*(theta -d)^2)
+df = data.frame(theta=theta, f=f)
+df %>% ggplot(aes(x=theta, y=f)) + geom_line()
+```
+
+
+
+$\epsilon$ 값이 너무 커지면 $\theta^{pr}$과 $\eta^{pr}$의 값이 너무 커져서 오버플로(overflow) 에러가 발생할 수 있다. $\epsilon$ 값이 너무 커지지 않게 설정해야 한다. 
+```{r}
+iter = 2000 # mcmc 표본 갯수 설정 
+d = 2  # 목표 밀도함수의 파라미터
+m = 1  # 운동에너지 파라미터 
+
+epsilon = 0.1
+L = 10 # 등넘기 알고리듬 파라미터 
+
+po.theta = NULL #사후표본 담을 리스트 
+po.eta = NULL
+theta = 5  # 초기값 
+```
+
+
+```{r}
+# 해밀턴 몬테 카를로 
+acc_count = 0 
+for(j in 1:iter) {
+  # 운동량 변수 추출 
+  eta_pr1 = rnorm(1, 0, sqrt(m))
+  eta = eta_pr1
+  
+  # 등넘기 알고리듬 
+  theta_pr = theta
+  eta_pr = eta
+  for(l in 1:L) {
+    eta_pr = eta_pr -(epsilon/2)* (4*theta_pr^3 -6*d*theta_pr^2 +2*d^2*theta_pr)
+    theta_pr = theta_pr + epsilon*eta_pr/m 
+    eta_pr = eta_pr -(epsilon/2)* (4*theta_pr^3 -6*d*theta_pr^2 +2*d^2*theta_pr)
+  }
+  #print(eta_pr);print(theta_pr)
+  
+  # 합격-불합격 결정 
+  u = runif(1, 0, 1)
+  acc_prob = exp(-theta_pr^2*(theta_pr - d)^2 + theta^2*(theta - d)^2 - eta_pr^2/(2*m) + eta^2/(2*m) ) 
+  if( u <= acc_prob ) {
+    theta = theta_pr
+    eta = eta_pr 
+    acc_count = acc_count + 1
+  }
+  
+  po.theta = c(po.theta, theta)
+  po.eta = c(po.eta, eta)
+}
+cat("합격 확률은 ", acc_count/iter, ".")
+post = data.frame(theta = po.theta, eta = po.eta)
+```
+
+
+```{r}
+post %>% mcmc %>% summary
+post %>% mcmc %>% ggs %>% ggs_density()
+post %>% mcmc %>% ggs %>% ggs_traceplot()
+post %>% mcmc %>% ggs %>% ggs_autocorrelation()
+```
+
+
+# 스탠을 이용한 압정 자료 분석 
+
+## 패키지 로딩
+
+```{r, echo = F, include = F}
+library(ggplot2)
+library(GGally) #ggpairs
+library(dplyr)
+library(rstan)
+library(ggmosaic) #geom_mosaic
+library(psych) #describe
+library(reshape2)
+```
+
+
+## 스탠 설정
+
+rstan을 실행하기에 앞서, 기본적으로 설정해야 할 코드이다.
+
+해당 코드를 실행하지 않으면, rstan 작동에 있어 오류가 발생할 수 있다.
+```{r}
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+```
+
+
+## 압정 자료 분석
+
+### 데이터
+
+```{r}
+x = 7
+n = 10
+data = list(x=x, n=n)
+```
+
+
+### 스탠 코드
+
+```{r, echo = F}
+pin.code ="
+data {
+  // data
+  int<lower=0> x;
+  int<lower=0> n;
+}
+
+parameters {
+  real<lower=0, upper=1> theta;
+}
+
+model {
+  x ~ binomial(n, theta);
+  theta ~ uniform(0,1);
+}
+"
+
+```
+
+```{r}
+pin.fit = stan(model_code=pin.code, data=data, 
+               seed=1234567, chains=4, iter=2000, thin=1)
+```
+
+
+### 결과 확인
+
+```{r}
+print(pin.fit)
+
+plot(pin.fit, plotfun="plot")
+plot(pin.fit, plotfun="dens")
+plot(pin.fit, plotfun="hist")
+plot(pin.fit, plotfun="trace")
+plot(pin.fit, plotfun="ac", pars="theta")
+```
+
+

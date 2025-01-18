@@ -1,0 +1,156 @@
+---
+title: "6장 정규분포를 이용한 모형들"
+output:
+  html_document:
+    number_sections: no
+    theme: cosmo
+    toc: no
+    toc_depth: 2
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, cache = FALSE, error = TRUE,
+  fig.width = 8, fig.height = 4
+)
+set.seed(123)
+```
+
+```{r}
+library(ggplot2)
+library(GGally)
+library(dplyr)
+library(coda)
+library(ggmcmc)
+```
+
+2013년에서 2014년 사이에 대한민국 육군에 입대한 남성 군인들의 신체 치수를 잰 데이터를 R에서 읽어들이자. 
+
+```{r}
+army <- read.csv("army-physical.csv", header = T, sep = ",")
+str(army)
+```
+
+ggplot 패키지를 이용해서 히스토그램을 다음과 같이 그릴 수 있다. 
+
+```{r}
+army %>% ggplot(aes(x = height)) +
+  geom_histogram()
+```
+
+qqplot을 그려보자. 
+
+```{r}
+army %>% ggplot(aes(sample = height)) +
+  stat_qq() +
+  stat_qq_line()
+```
+
+
+키들을 
+$$x_1, x_2, \ldots, x_n \stackrel{i.i.d.}{\sim} N\left(\mu, \sigma^2\right)$$
+와 같이 정규 모형을 따른다고 가정하고, $\mu$와 $\sigma^2$의 추정량을 구해보자. 
+
+켤레 사전분포
+\begin{equation}
+\begin{gathered}
+\mu |\lambda \sim N\left(\mu_0, \frac{\lambda^{-1}}{\kappa_0}\right) \\
+\lambda \sim  Ga\left(\frac{\nu_0}{2} ,\frac{\nu_0}{2}\sigma_0^2\right)  
+\end{gathered}
+\end{equation}
+를 
+$(\mu, \lambda)$의 사전 분포로 사용하자. 1980년대의  성인 남자의 키의 평균은 약 170cm이었다는 정보를 이용하여 $\mu_0 = 170$이라 놓자. 하지만 $\mu_0$가 2013년의 성인 남성의 키는 이보다 더 크리라 기대되고 $\mu_0=170$은 정확치 않으리라 기대된다. 이에 대한 사전표본의 크기를 1 보다 더 작게 $\kappa_0 = 0.1$로 놓도록 하자. 1980년대는 대략 성인 남자들의 키가 대부분 163cm에서 177cm안에 들어왔다. 이를 $7cm = 2 \sigma_0$로 놓도록 하자. 이에 대한 사전 표본의 크기도 $\nu_0 = 0.1$로 매우 작게 놓아 $\mu_0$와 $\sigma_0$가 사후 분포에 크게 영향을 끼치지 않고 정했다. 
+
+```{r}
+mu0 <- 170
+kappa0 <- 0.1
+sigma20 <- 3.5
+nu0 <- 0.1
+```
+
+사후 분포를 계산하기 위해 표본의 요약 통계량을 구하자. 
+
+```{r}
+xbar <- mean(army$height)
+s <- sd(army$height)
+n <- length(army$height)
+```
+
+이를 이용해서 사후 분포의 파라미터들을 다음과 같이 구한다. 
+```{r}
+mu1 <- (kappa0 * mu0 + n * xbar) / (kappa0 + n)
+kappa1 <- kappa0 + n
+nu1 <- nu0 + n
+sigma21 <- (kappa0 * n * (xbar - mu0)^2 / kappa1 + (n - 1) * s^2 + nu0 * sigma20) / nu1
+```
+
+구해진 사후 분포의 파라미터들을 이용해서 사후 표본을 다음과 같이 구한다. 
+```{r}
+m <- 5000
+lambda <- rgamma(n = m, shape = nu1 / 2, rate = nu1 * sigma21 / 2)
+mu <- rnorm(n = m, mean = mu1, sd = 1 / sqrt(kappa1 * lambda))
+sigma <- 1 / sqrt(lambda)
+post <- data.frame(lambda = lambda, mu = mu, sigma = sigma)
+```
+
+$m = 5000$개의 사후 표본을 구했고, 사후 표본으로 이루어진 데이터프레임 post를 만들었다. 이제 사후 표본을 이용해 사후 분포의 평균과 분위수를 구해보자. 
+
+```{r}
+post %>%
+  mcmc() %>%
+  summary()
+```
+
+사후분포의 히스토그램을 다음과 같이 그려보자. 
+
+```{r}
+post %>%
+  mcmc() %>%
+  ggs() %>%
+  ggs_histogram()
+```
+
+이번에는 대한민국 육군 남성들의 키들이
+$$x_1, x_2, \ldots, x_n \stackrel{i.i.d.}{\sim} N\left(\mu, \sigma^2\right)$$
+를 따르고, $(\mu, \lambda = \frac{1}{\sigma^2})$에 무정보 사전 분포
+$$ \pi(\mu, \lambda) d\mu d\lambda = \frac{1}{\lambda} d\mu d\lambda$$
+를 사용하자. 위에서 구한 사후 분포
+\begin{equation}
+\begin{gathered}
+\mu \mid \sigma^2, \mathbf{x}  \sim N\left(\mu | \bar{x}, \frac{\sigma^2}{n} \right)\\
+\lambda \mid \mathbf{x}  \sim  G\left(\frac{n-1}{2}, \frac{n-1}{2}s^2 \right)
+\end{gathered}
+\end{equation}
+를 이용해서 사후 표본을 추출해보자. 
+
+먼저 표본의 요약 통계량을 구하자. 
+```{r}
+xbar <- mean(army$height)
+s <- sd(army$height)
+n <- length(army$height)
+```
+
+```{r}
+m <- 5000
+lambda <- rgamma(n = m, shape = (n - 1) / 2, rate = (n - 1) * s^2 / 2)
+sigma <- 1 / sqrt(lambda)
+mu <- rnorm(n = m, mean = xbar, sd = sigma / sqrt(n))
+post <- data.frame(lambda = lambda, mu = mu, sigma = sigma)
+```
+
+사후 표본들의 요약 통계량은 다음과 같다. 
+
+```{r}
+post %>%
+  mcmc() %>%
+  summary()
+```
+
+사후 표본들의 히스토그램은 아래의 코드로 구할 수 있다.
+```{r}
+post %>%
+  mcmc() %>%
+  ggs() %>%
+  ggs_histogram()
+```
