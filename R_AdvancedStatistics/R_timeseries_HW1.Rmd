@@ -1,0 +1,134 @@
+---
+title: "Timeseries_Analysis_HW1"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+
+library(tidyverse)
+```
+
+---
+
+# 10
+
+
+```{r}
+set.seed(42)
+dataX <- c(0)
+dataY <- c(0)
+dataZ <- c(0)
+T <- 10000
+errors <- rnorm(T, 0, 1)
+
+for (t in 1:T) {
+  dataX <- append(dataX, dataX[t]*0.3 + errors[t])
+  dataY <- append(dataY, dataX[t] + t)
+  dataZ <- append(dataZ, dataX[t] + sin(t))
+}
+plot(dataX, main = '{X_t}', sub = 'n=10000')
+plot(dataY, main = '{Y_t}', sub = 'n=10000')
+plot(dataZ, main = '{Z_t}', sub = 'n=10000')
+```
+
+
+{X_t}는 플롯에 의하면 정상시계열이다. AR(1) 모델이고 그 계수의 절댓값이 1보다 작으므로 정상시계열이 실제 되는 것도 명백하다.
+
+{Y_t}는 시간축 t에 의해 그 값이 좌우되므로 정상시계열이 아니다.
+
+{Z_t}는 정상시계열이 아니지만, sint에 의해 그 변화가 주기적으로 일어나므로 플롯상 정상시계열로 보인다. 
+
+
+
+# 11
+
+## (1)
+
+```{r}
+name <- c('나연', '민재', '서준', '소연', '수민', '예린', '지은', '지훈', '준호', '현우')
+gender <- c('여', '남', '남', '여', '여', '여', '여', '남', '남', '남')
+running <- c(14.2, 11.7, 13.8, 15.0, 17.1, 19.5, 13.7, 15.5, 16.3, 12.3)
+palgup <- c(38, 51, 48, 27, 9, 13, 37, 55, 45, 19)
+
+physical_test <- data.frame(name, gender, running, palgup)
+```
+
+
+## (2)
+
+```{r}
+solo_rating <- function(gndr, run, pal){
+  if (gndr == '여') {
+    run_score <- case_when(
+    run >= 18.0 ~ 0,
+    run >= 16.0 ~ 1,
+    run > 14.0 ~ 2,
+    TRUE ~ 3
+    )
+    pal_score <- case_when(
+    pal <= 9 ~ 0,
+    pal <= 19 ~ 1,
+    pal <= 34 ~ 2,
+    TRUE ~ 3
+    )} 
+    else if (gndr == '남') {
+    run_score <- case_when(
+    run >= 16.1 ~ 0,
+    run >= 14.1 ~ 1,
+    run > 12.1 ~ 2,
+    TRUE ~ 3
+    )
+    pal_score <- case_when(
+    pal <= 19 ~ 0,
+    pal <= 34 ~ 1,
+    pal <= 49 ~ 2,
+    TRUE ~ 3
+    )}
+  return(run_score + pal_score)
+}
+
+ratings <- function(df){
+  rtlst <- c()
+  for (i in 1:nrow(df)) {
+    rtlst <- append(rtlst, solo_rating(df[i, 2], df[i, 3], df[i, 4]))
+  }
+  return(rtlst)
+}
+```
+
+## (3)
+
+
+```{r}
+final_column <- ratings(physical_test)
+final_column
+
+physical_test['스코어'] <- final_column
+physical_test
+```
+
+
+
+

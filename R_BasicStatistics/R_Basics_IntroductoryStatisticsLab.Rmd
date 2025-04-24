@@ -32,6 +32,25 @@ library(tidyverse)
 
 ---
 
+```{r}
+set.seed(42)
+score <- c()
+gender <- factor(rep(c('M', 'F'), 20))
+for (i in 1:20) {
+  score[2*i-1] <- sample(80:100, 1) 
+  score[2*i] <- sample(0:100, 1)
+  }
+```
+
+
+# Descriptive Statistics
+
+별로 배운 게 없음... baseR보다는 tidyverse 등 이용. 
+
+```{r}
+
+```
+
 
 
 # Estimation
@@ -52,12 +71,40 @@ var.test(score, score2)#등분산성 F-test
 t.test(score, score2, var.equal = T)#등분산성 이표본 t-test
 ```
 
+
+## Point Estimation
+
+모평균 <- 표본평균
+모분산 <- 표본분산
+모비율 <- 표본비율
+
+MLE 등 쓰더라도 컴퓨터로...
+
+
+## Interval Estimation
+
+구간을 어떻게 설정할 수 있는지 알면 됨. 
+
+
+## Estimation of Distribution
+
+
+
+
+
+
+
+## Testing
+
+가설검정의 이론을 알면, 실제로는 함수만 딸깍 누르기. 
+
+
 # Discrete Data Analysis
 
 ##동질성검정, 독립성검정 - chi-squared test
 
 ```{r}
-#chisq.test(x) where x : 분할표표
+#chisq.test(x) where x : 분할표
 ```
 
 동질성검정 : 특정 행위 여부에 따라 각 집단의 특성이 달라지는가?
