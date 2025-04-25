@@ -1,0 +1,175 @@
+---
+title: "Timeseries_Analysis_HW3"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+urlcolor : blue
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+
+library(tidyverse)
+library(forecast)
+```
+
+---
+
+# 06
+
+## 난수 생성 
+
+```{r}
+set.seed(1)
+phi <- runif(1, -1, 1)
+theta <- runif(1, -1, 1)
+set.seed(1)
+Xt <- arima.sim(n = 100, model = list(ar = phi, ma = theta))
+Xt
+```
+
+
+## 예측 
+
+```{r}
+preds <- c()
+for (i in 1:110) {
+  forecast_result <- predict(arma_model, n.ahead = 1)
+  preds <- append(preds, forecast_result$pred[1])
+  arma_model <- Arima(c(Xt, preds[1:i]), order = c(1, 0, 1))
+}
+```
+
+
+## 101~110번째 예측값
+
+```{r}
+for (i in 1:10) {
+  print(preds[i])
+}
+```
+
+
+
+# 07
+
+## 난수 생성 
+
+```{r}
+phis <- c()
+
+set.seed(1)
+for (i in 1:500) {
+  # time-series data generation
+  Xt <- arima.sim(n = 100, model = list(ar = 0.5))
+  
+  # saving LSE
+  phi_hat <- as.numeric(lm(formula = Xt[-length(Xt)] ~ Xt[-1] + 0)$coef)
+  phis <- append(phis, phi_hat)
+}
+
+head(phis)
+```
+
+
+## 히스토그램
+
+```{r}
+modified_data <- 10*(phis - 0.5)
+
+hist(modified_data)
+```
+
+정규분포와 꽤나 유사해 보인다.
+
+
+## 이론적 값과 비교
+
+```{r}
+mean(modified_data)
+var(modified_data)
+
+# 이론적 값
+0
+0.75
+```
+
+
+$\sigma^2 = 1$이다. $E(X_1^2)= \frac{4}{3}$이다. 즉 이론적 분산은 0.75, 이론적 평균은 0이다.실제 값과 큰 차이가 나지는 않는다.
+
+
+
+# 09
+
+## 데이터 입력 
+
+```{r}
+Xt <- read.csv('ex_ch3_8.txt', sep = '\n')
+Xt <- ts(as.vector(Xt)$data)
+Xt
+```
+
+[자유아카데미 홈페이지 자료실](http://www.freeaca.com/new/library/BoardTableList.aspx)에서 다운로드할 수 있는 '시계열 분석 이론 및 SAS 실습 2판' 교재의 데이터 파일을 내려받아 활용하였다. 파일명이 교재와 다른데, 3장에서 파일을 활용하는 문제가 하나뿐이어서 이름이 3.8 문제에 대응하는 것으로 되어 있는 파일을 활용하였다.
+
+
+## CSS 사용(최소제곱추정량)
+
+```{r}
+Xt_LSE <- arima(x = Xt, order = c(1, 0, 1), method = 'CSS')
+Xt_LSE$coef
+```
+
+$\hat{\phi}_{LSE} = 0.4405$
+
+$\hat{\theta}_{LSE} = 0.0347$
+
+$\hat{\mu}_{LSE} = 74.8414$
+
+
+## ML 사용(최대가능도추정량)
+
+```{r}
+Xt_MLE <- arima(x = Xt, order = c(1, 0, 1), method = 'ML')
+Xt_MLE$coef
+```
+
+$\hat{\phi}_{MLE} = 0.4109$
+
+$\hat{\theta}_{MLE} = 0.0342$
+
+$\hat{\mu}_{MLE} = 74.4687$
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
