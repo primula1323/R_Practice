@@ -1,0 +1,198 @@
+---
+title: "Timeseries_Analysis_HW4"
+author: "Na SeungChan"
+date: "`r Sys.Date()`"
+mainfont : NanumGothic
+monofont : UnShinmun
+urlcolor : blue
+header-includes:
+  - \usepackage{fvextra}
+  - \fvset{breaklines}
+output:
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.align = 'center',
+  fig.width = 7,
+  fig.height = 5,
+  out.width = '80%',
+  dpi = 300
+)
+
+library(tidyverse)
+library(forecast)
+library(tseries)
+library(xts)
+```
+
+---
+
+# Q.07
+
+## 난수 생성
+
+```{r}
+set.seed(42)
+phi <- runif(1, -1, 1)
+theta <- runif(1, -1, 1)
+
+set.seed(1)
+ARt <- arima.sim(n = 100, model = list(ar = phi))
+set.seed(1)
+MAt <- arima.sim(n = 100, model = list(ma = theta))
+```
+
+
+## AIC 계산 : AR 데이터
+
+```{r}
+AR1 <- arima(ARt, order = c(1,0,0))
+AR1$aic #AR(1) 적합시 AIC
+AR2 <- arima(ARt, order = c(1,0,1))
+AR2$aic #ARMA(1) 적합시 AIC
+```
+
+
+## AIC 계산 : MA 데이터
+
+```{r}
+MA1 <- arima(MAt, order = c(0,0,1))
+MA1$aic #AR(1) 적합시 AIC
+MA2 <- arima(MAt, order = c(1,0,1))
+MA2$aic #ARMA(1) 적합시 AIC
+```
+
+여담으로, 이 결과는 일관성이 없다. 이론상 AIC는 불필요한 변수를 포함하지 않은 AR1과 MA1 모델에서 작아야 하지만, 실제로 자료 생성 시 계수에 따라 ARMA(1,1)을 적합했을 때 AIC가 더 작아지기도 한다.
+
+
+
+# Q.10
+
+## data load
+
+```{r}
+df10 <- read_csv('ex_ch4_10.txt')
+df10 <- ts(df10$data)
+head(df10)
+```
+
+## (1) 
+
+```{r}
+plot(df10)
+acf.df10 = acf(x = df10, type = "covariance")
+```
+
+시계열도와 SACF를 통해 비정상성을 의심하는 정도는 가능하지만, 정상시게열일 가능성을 배제할 수 없다. 추가적인 단위근검정이 필요해 보인다.
+
+
+## (2)
+
+```{r}
+adf.test(df10, alternative = 'stationary')
+```
+
+
+해당 시계열이 정상시계열이라고 하기 어렵다.
+
+
+## (3)
+
+
+```{r}
+adf.test(diff(df10))
+```
+
+1회 차분함으로써 정상시계열이 될 수 있다.
+
+
+
+```{r}
+auto.arima(df10, d = 1, trace = TRUE)
+
+model <- arima(df10, order = c(0,1,0))
+```
+
+ARIMA(0, 1, 0)을 채택하였다. 차분을 한 번 하는 랜덤워크이다.
+
+
+
+## (4)
+
+```{r}
+checkresiduals(model)
+
+arima(df10, order = c(1,1,0))
+arima(df10, order = c(0,1,1))
+```
+
+
+잔차분석 및 과적합 진단 결과 ARIMA(1, 1, 0)과 ARIMA(0, 1, 1) 모두 계수가 낮아 유의성을 말하기 어렵다. 잔차의 형태 역시 적절하다.
+
+
+# Q.13
+
+## data load 
+
+```{r}
+gld <- read_csv('ex_ch4_13_gold.csv')
+gld$date <- as_date(gld$date)
+gld
+
+gold <- xts(gld$price, order.by = gld$date, col.names = 'price')
+```
+
+
+
+## (1)
+
+```{r}
+plot(gold)
+acf(gold)
+adf.test(x = gold, alternative = "stationary")
+```
+
+plot상 증가 추세가 있고, ACF가 빠르게 감소하지 않으며, ADF test를 통해서도 대립가설인 정상시계열을 기각할 수 없다. 정상시계열이라고 보기 어렵고, 차분과 로그변환을 통해 정상시계열로 만드는 것을 고려할 수 있다.
+
+
+
+## (2)~(3)
+
+차분 필요. unit root test를 통해 차분의 차수를 구한다.
+
+여러 변환을 고려해 볼 때, 로그를 씌운 가격 데이터를 차분함으로써 분산이 일정하지는 않지만 정상시계열과 유사한 모습을 볼 수 있다. 이와 같은 데이터를 통해 auto.arima를 수행한다.
+
+```{r}
+plot(BoxCox(x = gold, lambda = 0.2), type = "l")
+plot(log(gold), type = "l" )
+adf.test(x = log(gold),
+         alternative = "stationary")
+
+plot(diff(log(gold)), type = "l")
+adf.test(x = na.omit(diff(log(gold))),
+         alternative = "stationary")
+```
+
+
+```{r}
+model <- auto.arima(log(gold))
+model
+checkresiduals(model)
+
+arima(log(gold), order = c(3,1,2))
+arima(log(gold), order = c(2,1,3))
+```
+
+
+해당 자료에 대해 로그변환 후 차분 후 시계열을 만들어냄으로써 ARIMA 모델을 적합한다. ln(price) ~ ARIMA(2, 1, 2) 모델을 적합하였으며, 그 적절성을 잔차를 통해 검증하고 한 단계 큰 모델을 통해 확인하였다. 한 단계 큰 모델들을 검토함으로써 해당 모델의 적합성을 확인하였으나, 분산이 안정되지 않은 점 아쉽다.
+
+

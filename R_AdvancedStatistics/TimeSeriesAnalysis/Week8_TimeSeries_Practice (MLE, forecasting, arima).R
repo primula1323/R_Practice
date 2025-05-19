@@ -76,9 +76,9 @@ arma.fit.arima = Arima(y = arma.dat,
 arma.fit.arima
 fitted.arma.arima = fitted(arma.fit.arima)
 fitted.arma - fitted.arma.arima
+?fitted
 
-
-### Forecasting
+#fitted### Forecasting
 ?forecast
 set.seed(12345)
 arma.dat2 = arima.sim(model = list(ar = c(0.5, 0.2)), n = 600)
